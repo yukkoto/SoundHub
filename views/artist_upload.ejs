@@ -1,0 +1,21 @@
+<div class="deck two-col">
+  <section class="module">
+    <header class="module-head"><h2>Загрузка трека</h2><span>artist studio</span></header>
+    <div class="module-body">
+      <% if (error) { %><div class="alert"><%= error %></div><% } %>
+      <% if (success) { %><div class="alert"><%= success %></div><% } %>
+      <form method="post" action="/artist/upload" enctype="multipart/form-data" class="form-flow">
+        <label class="lbl">Название</label><input class="input" name="title" placeholder="Название трека" required />
+        <label class="lbl">Жанр</label><input class="input" name="genre" placeholder="Electronic / Chill / SynthWave" />
+        <label class="lbl">Длительность (мм:сс)</label><input class="input" name="duration" placeholder="3:15" />
+        <label class="lbl">Аудио файл</label><input class="input" type="file" name="audio" accept=".mp3,.wav,.ogg,.m4a,.aac" />
+        <label class="lbl">Обложка</label><input class="input" type="file" name="cover" accept=".png,.jpg,.jpeg,.webp" />
+        <div class="row-actions"><button class="btn rail-btn-accent" type="submit">Отправить</button><% if (artistId) { %><a class="btn" href="/author/<%= artistId %>">Мой артист</a><% } %></div>
+      </form>
+    </div>
+  </section>
+  <section class="module">
+    <header class="module-head"><h2>Модерация</h2><span>pipeline</span></header>
+    <div class="module-body"><p class="plain">После отправки трек получает статус <b>pending</b>, виден тебе и админу. После одобрения становится публичным.</p></div>
+  </section>
+</div>

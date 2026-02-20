@@ -1,0 +1,18 @@
+<section class="module">
+  <header class="module-head"><h2>Профиль</h2><span><%= user ? user.role : 'guest' %></span></header>
+  <div class="module-body">
+    <% if (!user) { %>
+      <p class="plain">Вы пользуетесь сайтом как гость. Вход не обязателен.</p>
+      <div class="row-actions"><a class="btn rail-btn-accent" href="/login">Войти</a><a class="btn" href="/register">Регистрация</a><a class="btn" href="/library">Библиотека</a></div>
+    <% } else { %>
+      <div class="profile-grid"><div class="profile-cell"><span>Имя</span><b><%= user.displayName %></b></div><div class="profile-cell"><span>Email</span><b><%= user.email || '—' %></b></div><div class="profile-cell"><span>Роль</span><b><%= user.role %></b></div><div class="profile-cell"><span>Провайдер</span><b><%= user.provider %></b></div></div>
+      <div class="row-actions">
+        <a class="btn rail-btn-accent" href="/library">Моя библиотека</a>
+        <% if (user.role === 'artist') { %><a class="btn" href="/artist/upload">Добавить трек</a><% } %>
+        <% if (user.role === 'artist' && user.artistId) { %><a class="btn" href="/author/<%= user.artistId %>">Мой артист</a><% } %>
+        <% if (user.role === 'admin') { %><a class="btn" href="/admin">Админка</a><% } %>
+        <a class="btn" href="/logout">Выйти</a>
+      </div>
+    <% } %>
+  </div>
+</section>

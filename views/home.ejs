@@ -1,0 +1,37 @@
+<div class="deck two-col">
+  <section class="module">
+    <header class="module-head"><h2>Новые релизы</h2><span>week feed</span></header>
+    <div class="module-body">
+      <div class="coverwall">
+        <% newTracks.forEach(t => { %>
+          <a class="wall-card" href="/track/<%= t.id %>">
+            <img src="<%= t.cover %>" alt="">
+            <div class="wall-meta">
+              <div class="wall-title"><%= t.title %></div>
+              <div class="wall-sub"><%= t.artist %> • <%= t.genre %></div>
+            </div>
+          </a>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+
+  <section class="module">
+    <header class="module-head"><h2>Топ эфира</h2><span>live</span></header>
+    <div class="module-body">
+      <div class="track-list">
+        <% topTracks.forEach(t => { %>
+          <article class="track-unit">
+            <div class="cover"><img src="<%= t.cover %>" alt=""></div>
+            <div class="meta"><div class="t"><%= t.title %></div><div class="a"><%= t.artist %></div></div>
+            <div class="right">
+              <span class="pill"><%= t.duration %></span>
+              <button class="likebtn <%= t.isLiked ? 'liked' : '' %>" data-like-id="<%= t.id %>" aria-label="Лайк">❤</button>
+              <button class="iconbtn" data-play='<%= JSON.stringify({id:t.id, title:t.title, artist:t.artist, artistId:t.artistId, cover:t.cover, audio:t.audio}) %>' title="Play">▶</button>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+</div>

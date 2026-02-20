@@ -1,0 +1,68 @@
+[
+  {
+    "id": "t1",
+    "title": "Golden Dreams",
+    "artistId": "a1",
+    "genre": "SynthWave",
+    "duration": "3:45",
+    "cover": "/assets/covers/t1.png",
+    "audio": "/audio/sample.wav",
+    "plays": 5320,
+    "likes": 384
+  },
+  {
+    "id": "t2",
+    "title": "Midnight Drive",
+    "artistId": "a1",
+    "genre": "SynthWave",
+    "duration": "2:58",
+    "cover": "/assets/covers/t2.png",
+    "audio": "/audio/sample.wav",
+    "plays": 4210,
+    "likes": 291
+  },
+  {
+    "id": "t3",
+    "title": "Neon Dreams",
+    "artistId": "a1",
+    "genre": "Electronic",
+    "duration": "2:30",
+    "cover": "/assets/covers/t3.png",
+    "audio": "/audio/sample.wav",
+    "plays": 2790,
+    "likes": 155
+  },
+  {
+    "id": "t4",
+    "title": "Electric Pulse",
+    "artistId": "a1",
+    "genre": "Electronic",
+    "duration": "3:10",
+    "cover": "/assets/covers/t4.png",
+    "audio": "/audio/sample.wav",
+    "plays": 1000,
+    "likes": 62
+  },
+  {
+    "id": "t5",
+    "title": "Sunset Waves",
+    "artistId": "a2",
+    "genre": "Chill",
+    "duration": "3:12",
+    "cover": "/assets/covers/t5.png",
+    "audio": "/audio/sample.wav",
+    "plays": 3010,
+    "likes": 210
+  },
+  {
+    "id": "t6",
+    "title": "Smooth Ride",
+    "artistId": "a2",
+    "genre": "Chill",
+    "duration": "2:20",
+    "cover": "/assets/covers/t6.png",
+    "audio": "/audio/sample.wav",
+    "plays": 1850,
+    "likes": 98
+  }
+]

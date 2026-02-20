@@ -1,0 +1,34 @@
+<div class="deck two-col">
+  <section class="module">
+    <header class="module-head"><h2>Локальный вход</h2><span>email/password</span></header>
+    <div class="module-body">
+      <% if (error) { %><div class="alert"><%= error %></div><% } %>
+      <form method="post" action="/login" class="form-flow">
+        <input type="hidden" name="next" value="<%= next %>" />
+        <label class="lbl">Email</label>
+        <input class="input" name="email" placeholder="admin@soundhub.local" autocomplete="username" required />
+        <label class="lbl">Пароль</label>
+        <input class="input" name="password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+        <div class="row-actions"><button class="btn rail-btn-accent" type="submit">Войти</button><a class="btn" href="/">Гостевой режим</a></div>
+      </form>
+      <p class="plain">Нет аккаунта? <a href="/register?next=<%= encodeURIComponent(next) %>">Регистрация</a></p>
+    </div>
+  </section>
+
+  <section class="module">
+    <header class="module-head"><h2>Быстрый вход</h2><span>oauth + demo</span></header>
+    <div class="module-body">
+      <div class="controls-col">
+        <a class="btn <%= providers.google ? 'rail-btn-accent' : 'disabled' %>" href="<%= providers.google ? '/auth/google?next=' + encodeURIComponent(next) : '#' %>">Google</a>
+        <a class="btn <%= providers.vk ? 'rail-btn-accent' : 'disabled' %>" href="<%= providers.vk ? '/auth/vk?next=' + encodeURIComponent(next) : '#' %>">VK</a>
+        <a class="btn <%= providers.yandex ? 'rail-btn-accent' : 'disabled' %>" href="<%= providers.yandex ? '/auth/yandex?next=' + encodeURIComponent(next) : '#' %>">Яндекс</a>
+      </div>
+      <hr class="sep" />
+      <div class="controls-col">
+        <a class="btn" href="/login/demo/admin?next=<%= encodeURIComponent(next) %>">Демо админ</a>
+        <a class="btn" href="/login/demo/artist?next=<%= encodeURIComponent(next) %>">Демо исполнитель</a>
+        <a class="btn" href="/login/demo/user?next=<%= encodeURIComponent(next) %>">Демо пользователь</a>
+      </div>
+    </div>
+  </section>
+</div>

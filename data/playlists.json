@@ -1,0 +1,16 @@
+[
+  {
+    "id": "p1",
+    "title": "Chill Vibes",
+    "owner": "SoundHub",
+    "isPublic": true,
+    "description": "Расслабься и наслаждайся спокойными мелодиями.",
+    "trackIds": [
+      "t5",
+      "t6",
+      "t1",
+      "t2"
+    ],
+    "total": "42 мин."
+  }
+]

@@ -1,0 +1,17 @@
+<section class="module">
+  <header class="module-head"><h2>Подборки</h2><span><%= playlists.length %> списков</span></header>
+  <div class="module-body">
+    <% if (!playlists.length) { %>
+      <div class="empty">Пока нет подборок.</div>
+    <% } else { %>
+      <div class="track-list">
+        <% playlists.forEach(p => { %>
+          <article class="track-unit slim">
+            <div class="meta"><div class="t"><a href="/playlist/<%= p.id %>"><%= p.title %></a></div><div class="a"><%= p.owner %><% if (typeof p.visibleCount === 'number') { %> • <%= p.visibleCount %> треков<% } %></div></div>
+            <div class="right"><a class="btn" href="/playlist/<%= p.id %>">Открыть</a></div>
+          </article>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</section>

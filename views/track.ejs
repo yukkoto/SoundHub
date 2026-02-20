@@ -1,0 +1,47 @@
+<section class="module">
+  <div class="module-body">
+    <div class="hero-track">
+      <div class="hero-cover"><img src="<%= track.cover %>" alt=""></div>
+      <div class="hero-text">
+        <div class="micro">single</div>
+        <h2><%= track.title %></h2>
+        <p><a href="/author/<%= author.id %>"><%= author.name %></a> • <%= track.genre %> • <%= track.duration %></p>
+        <div class="row-actions">
+          <button class="btn rail-btn-accent" data-play='<%= JSON.stringify({id:track.id, title:track.title, artist:author.name, artistId:author.id, cover:track.cover, audio:track.audio}) %>'>▶ Играть</button>
+          <button class="likebtn <%= track.isLiked ? 'liked' : '' %>" data-like-id="<%= track.id %>" aria-label="Лайк">❤</button>
+          <a class="btn" href="/playlists">В подборки</a>
+        </div>
+        <% if (typeof showStatus !== 'undefined' && showStatus) { %><p class="micro">Статус: <b><%= track.status %></b></p><% } %>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="deck two-col">
+  <section class="module">
+    <header class="module-head"><h2>Похожие треки</h2><span>related</span></header>
+    <div class="module-body">
+      <div class="track-list">
+        <% related.forEach(t => { %>
+          <article class="track-unit">
+            <div class="cover"><img src="<%= t.cover %>" alt=""></div>
+            <div class="meta"><div class="t"><a href="/track/<%= t.id %>"><%= t.title %></a></div><div class="a"><%= t.artist %> • <%= t.genre %></div></div>
+            <div class="right">
+              <span class="pill"><%= t.duration %></span>
+              <button class="likebtn <%= t.isLiked ? 'liked' : '' %>" data-like-id="<%= t.id %>" aria-label="Лайк">❤</button>
+              <button class="iconbtn" data-play='<%= JSON.stringify({id:t.id, title:t.title, artist:t.artist, artistId:t.artistId, cover:t.cover, audio:t.audio}) %>' title="Play">▶</button>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+
+  <section class="module">
+    <header class="module-head"><h2>Статистика</h2><span>metrics</span></header>
+    <div class="module-body">
+      <div class="metrics"><div class="metric"><b><%= track.plays %></b><span>прослушиваний</span></div><div class="metric"><b><%= track.likes %></b><span>лайков</span></div></div>
+      <div class="row-actions"><a class="btn" href="/author/<%= author.id %>">Открыть автора</a></div>
+    </div>
+  </section>
+</div>

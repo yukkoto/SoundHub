@@ -1,0 +1,32 @@
+<div class="deck two-col">
+  <section class="module">
+    <header class="module-head"><h2>Поиск в каталоге</h2><span><%= results.length %> результатов</span></header>
+    <div class="module-body">
+      <div class="search-box"><input class="input" placeholder="Введите название трека или автора..." /></div>
+      <div class="track-list">
+        <% results.forEach(t => { %>
+          <article class="track-unit">
+            <div class="cover"><img src="<%= t.cover %>" alt=""></div>
+            <div class="meta"><div class="t"><a href="/track/<%= t.id %>"><%= t.title %></a></div><div class="a"><%= t.artist %> • <%= t.genre %></div></div>
+            <div class="right">
+              <span class="pill"><%= t.duration %></span>
+              <button class="likebtn <%= t.isLiked ? 'liked' : '' %>" data-like-id="<%= t.id %>" aria-label="Лайк">❤</button>
+              <button class="iconbtn" data-play='<%= JSON.stringify({id:t.id, title:t.title, artist:t.artist, artistId:t.artistId, cover:t.cover, audio:t.audio}) %>' title="Play">▶</button>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+
+  <section class="module">
+    <header class="module-head"><h2>Жанровые теги</h2><span>filters</span></header>
+    <div class="module-body">
+      <div class="chipline">
+        <a class="chip" href="#">SynthWave</a>
+        <a class="chip" href="#">Electronic</a>
+        <a class="chip" href="#">Chill</a>
+      </div>
+    </div>
+  </section>
+</div>

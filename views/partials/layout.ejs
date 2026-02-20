@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title><%= title %> — SoundHub</title>
+  <link rel="stylesheet" href="/css/style.css?v=20260216-topnav-lightmode" />
+</head>
+<body class="app-body" data-density="cozy" data-list-view="rows" data-theme="dark">
+  <div class="workspace workspace-full">
+    <header class="workspace-top">
+      <div class="ws-left">
+        <button class="tool-btn" id="navToggle" aria-label="Показать меню">⋯</button>
+        <a class="brand" href="/" aria-label="На главную"><span class="dot"></span></a>
+        <div class="ws-titles">
+          <div class="ws-title">Интерфейс</div>
+        </div>
+      </div>
+
+      <nav class="top-nav" id="topNav">
+        <div class="nav-group">
+          <a class="nav-link" href="/">Главная</a>
+          <a class="nav-link" href="/search">Обзор</a>
+          <a class="nav-link" href="/library">Библиотека</a>
+          <a class="nav-link" href="/playlists">Подборки</a>
+          <% if (currentUser && currentUser.role === 'artist' && currentUser.artistId) { %>
+            <a class="nav-link" href="/artist/upload">Загрузка</a>
+            <a class="nav-link" href="/author/<%= currentUser.artistId %>">Мой артист</a>
+          <% } %>
+        </div>
+      </nav>
+
+      <!-- Right menu (account + view/theme/commands) -->
+      <div class="header-menu-wrap">
+        <button class="tool-btn" id="headerMenuBtn" aria-haspopup="true" aria-expanded="false" aria-label="Меню">
+          <span class="burger" aria-hidden="true"><i></i><i></i><i></i></span>
+        </button>
+        <div class="header-menu" id="headerMenu" aria-hidden="true">
+          <div class="header-menu-section">
+            <a class="nav-link" href="/profile"><%= currentUser ? 'Профиль' : 'Гость' %></a>
+            <% if (currentUser && currentUser.role === 'admin') { %>
+              <a class="nav-link nav-link-accent" href="/admin">Админ</a>
+            <% } %>
+            <% if (currentUser) { %>
+              <a class="nav-link nav-link-accent" href="/logout">Выйти</a>
+            <% } else { %>
+              <a class="nav-link" href="/register">Регистрация</a>
+              <a class="nav-link nav-link-accent" href="/login">Войти</a>
+            <% } %>
+          </div>
+          <div class="header-menu-sep" aria-hidden="true"></div>
+          <div class="header-menu-section">
+            <button class="tool-btn" id="toggleListView" title="Вид списка">Вид</button>
+            <button class="tool-btn" id="toggleTheme" title="Светлый/тёмный режим">Тема</button>
+            <button class="tool-btn tool-btn-accent" id="openPalette" title="Ctrl+K">Команды</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="stage">
+      <section class="headline">
+        <p class="headline-kicker">SoundHub</p>
+        <h1 class="headline-title"><%= headline %></h1>
+        <% if (subline) { %><p class="headline-sub"><%= subline %></p><% } %>
+      </section>
+
+      <section class="quickstrip">
+        <a class="quick-item" href="/search"><span>Найти</span><b>Track Search</b></a>
+        <a class="quick-item" href="/library"><span>Коллекция</span><b>Liked Library</b></a>
+        <a class="quick-item" href="/playlists"><span>Списки</span><b>Curated Playlists</b></a>
+      </section>
+
+      <%- body %>
+    </main>
+  </div>
+
+  <div id="playerbar" class="playerbar">
+    <div class="playerinner">
+      <div class="p-left">
+        <div class="mini"><img id="miniCover" src="/assets/covers/t1.png" alt="cover" /></div>
+        <div class="minimeta">
+          <div class="t" id="miniTitle">—</div>
+          <div class="a" id="miniArtist">—</div>
+        </div>
+      </div>
+
+      <div class="p-mid">
+        <div class="time" id="curTime">0:00</div>
+        <div class="progress" id="progress"><div class="fill" id="progressFill"></div></div>
+        <div class="time" id="durTime">0:00</div>
+      </div>
+
+      <div class="p-right">
+        <button class="likebtn" id="miniLikeBtn" data-like-current aria-label="Лайк">❤</button>
+        <button class="pausebtn" id="pauseBtn" aria-label="Play/Pause">
+          <div class="pauseicon"><span></span><span></span></div>
+        </button>
+        <a class="smallbtn" href="/library">Библиотека</a>
+        <a class="smallbtn" id="openTrackLink" href="#">Трек</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="playerfull" class="playerfull" aria-hidden="true">
+    <div class="pf-sheet">
+      <div class="pf-top">
+        <div class="pf-hint">Развернутый плеер</div>
+        <button class="pf-close" data-full-close aria-label="Закрыть">✕</button>
+      </div>
+      <div class="pf-center">
+        <div class="pf-cover"><img id="fullCover" src="/assets/covers/t1.png" alt="cover" /></div>
+        <div class="pf-title" id="fullTitle">—</div>
+        <div class="pf-artist" id="fullArtist">—</div>
+      </div>
+      <div class="pf-progressline">
+        <div class="time" id="fullCurTime">0:00</div>
+        <div class="progress big" id="fullProgress"><div class="fill" id="fullProgressFill"></div></div>
+        <div class="time" id="fullDurTime">0:00</div>
+      </div>
+      <div class="pf-controls">
+        <button class="likebtn big" id="fullLikeBtn" data-like-current aria-label="Лайк">❤</button>
+        <button class="pausebtn big" id="fullPauseBtn" aria-label="Play/Pause">
+          <div class="pauseicon"><span></span><span></span></div>
+        </button>
+        <a class="btn" id="fullTrackLink" href="#">Открыть трек</a>
+        <a class="btn" id="fullAuthorLink" href="#">Открыть автора</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="palette" class="palette" aria-hidden="true">
+    <div class="palette-panel">
+      <input id="paletteInput" class="palette-input" placeholder="Команда или страница..." />
+      <div id="paletteList" class="palette-list"></div>
+    </div>
+  </div>
+
+  <script>
+    window.__LIKED_IDS__ = <%- JSON.stringify(effectiveLikes || []) %>;
+  </script>
+  <script src="/js/player.js"></script>
+  <script src="/js/ui.js"></script>
+</body>
+</html>

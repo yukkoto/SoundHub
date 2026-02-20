@@ -1,0 +1,27 @@
+[
+  {
+    "id": "u_admin",
+    "provider": "local",
+    "email": "admin@soundhub.local",
+    "displayName": "Админ",
+    "role": "admin",
+    "passwordHash": "bdbd2f243480ab30c21b33c3fb995d04:d2b16a30b4a86596b6b86c9464dc9c9f13b788972107ce64753a88243b324bbd307591c01e5ee825606d9ef34dba4b48012900a100d71ebd1cedc10804b9d2ed"
+  },
+  {
+    "id": "u_artist",
+    "provider": "local",
+    "email": "artist@soundhub.local",
+    "displayName": "Исполнитель",
+    "role": "artist",
+    "artistId": "a1",
+    "passwordHash": "a64246a05c88d2c55a34339c53eeb3aa:818463e0f645e0a794a4c70f3dbb481bdeeea1270cdb68c622dda8a8ac54a6fbab5448aa00032c29e4b70051bb434793478e94a4ee282fd3fcde24a1917e6ea1"
+  },
+  {
+    "id": "u_user",
+    "provider": "local",
+    "email": "user@soundhub.local",
+    "displayName": "Пользователь",
+    "role": "user",
+    "passwordHash": "10f385a4df2880692c1e839811ebc988:9f50262a3f1ca1d77ca6cdfd8b5469da3067d6f0734c7417613f378b702fe80faf683ab8fcf47384c9a9283cb04ff009039dae89b7cde1221844ea990403fbac"
+  }
+]

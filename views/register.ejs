@@ -1,0 +1,32 @@
+<div class="deck two-col">
+  <section class="module">
+    <header class="module-head"><h2>Регистрация</h2><span>create account</span></header>
+    <div class="module-body">
+      <% if (error) { %><div class="alert"><%= error %></div><% } %>
+      <form method="post" action="/register" class="form-flow">
+        <input type="hidden" name="next" value="<%= next %>" />
+        <label class="lbl">Имя</label>
+        <input class="input" name="displayName" placeholder="Как показывать вас в профиле" value="<%= displayName %>" autocomplete="nickname" />
+        <label class="lbl">Email</label>
+        <input class="input" name="email" placeholder="you@example.com" value="<%= email %>" autocomplete="email" required />
+        <label class="lbl">Пароль</label>
+        <input class="input" name="password" type="password" placeholder="Минимум 6 символов" autocomplete="new-password" required />
+        <label class="lbl">Повторите пароль</label>
+        <input class="input" name="password2" type="password" placeholder="Еще раз" autocomplete="new-password" required />
+        <div class="row-actions"><button class="btn rail-btn-accent" type="submit">Создать</button><a class="btn" href="/login?next=<%= encodeURIComponent(next) %>">Уже есть аккаунт</a></div>
+      </form>
+    </div>
+  </section>
+
+  <section class="module">
+    <header class="module-head"><h2>OAuth</h2><span>providers</span></header>
+    <div class="module-body">
+      <div class="controls-col">
+        <a class="btn <%= providers.google ? 'rail-btn-accent' : 'disabled' %>" href="<%= providers.google ? '/auth/google?next=' + encodeURIComponent(next) : '#' %>">Google</a>
+        <a class="btn <%= providers.vk ? 'rail-btn-accent' : 'disabled' %>" href="<%= providers.vk ? '/auth/vk?next=' + encodeURIComponent(next) : '#' %>">VK</a>
+        <a class="btn <%= providers.yandex ? 'rail-btn-accent' : 'disabled' %>" href="<%= providers.yandex ? '/auth/yandex?next=' + encodeURIComponent(next) : '#' %>">Яндекс</a>
+      </div>
+      <p class="plain">Если кнопки серые — OAuth не настроен.</p>
+    </div>
+  </section>
+</div>
