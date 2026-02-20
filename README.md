@@ -1,4 +1,4 @@
-# SoundHub (Demo)
+# SoundHub Demo
 
 Минималистичный демо-проект SoundHub на **JavaScript (Node.js + Express + EJS)**.
 
