@@ -1,0 +1,26 @@
+[
+  {
+    "id": "a1",
+    "name": "Ethan Black",
+    "tagline": "Электронная музыка",
+    "bio": "Пишу атмосферные синты, мягкие басы и мелодии для позднего вечера.",
+    "avatar": "/assets/covers/author-a1.png",
+    "stats": {
+      "tracks": 4,
+      "followers": 18,
+      "plays": 18320
+    }
+  },
+  {
+    "id": "a2",
+    "name": "Luna Sky",
+    "tagline": "Lo‑fi / Chill",
+    "bio": "Lo‑fi для фокуса и отдыха. Минимализм и тёплый звук.",
+    "avatar": "/assets/covers/author-a2.png",
+    "stats": {
+      "tracks": 3,
+      "followers": 12,
+      "plays": 9820
+    }
+  }
+]

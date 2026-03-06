@@ -1,0 +1,43 @@
+<section class="module">
+  <div class="module-body">
+    <div class="author-strip">
+      <div class="avatar"><img src="<%= author.avatar %>" alt=""></div>
+      <div class="author-info">
+        <h2><%= author.name %></h2>
+        <p><%= author.tagline %></p>
+        <div class="metrics triple"><div class="metric"><b><%= stats.tracks %></b><span>треков</span></div><div class="metric"><b><%= stats.followers %></b><span>подписок</span></div><div class="metric"><b><%= Math.round(stats.plays/1000) %>k</b><span>прослушиваний</span></div></div>
+      </div>
+      <div>
+        <% if (currentUser && currentUser.role === 'artist' && currentUser.artistId === author.id) { %><a class="btn rail-btn-accent" href="/artist/upload">Добавить трек</a><% } else { %><button class="btn rail-btn-accent">Подписаться</button><% } %>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="deck two-col">
+  <section class="module">
+    <header class="module-head"><h2>Дискография</h2><span>catalog</span></header>
+    <div class="module-body">
+      <div class="track-list">
+        <% tracks.forEach(t => { %>
+          <article class="track-unit">
+            <div class="cover"><img src="<%= t.cover %>" alt=""></div>
+            <div class="meta">
+              <div class="t"><a href="/track/<%= t.id %>"><%= t.title %></a></div>
+              <div class="a"><%= t.genre %> <% if (showStatus && t.status && t.status !== 'published') { %>• <span class="pill status <%= t.status %>"><%= t.status %></span><% } %></div>
+            </div>
+            <div class="right">
+              <span class="pill"><%= t.duration %></span>
+              <button class="likebtn <%= t.isLiked ? 'liked' : '' %>" data-like-id="<%= t.id %>" aria-label="Лайк">❤</button>
+              <button class="iconbtn" data-play='<%= JSON.stringify({id:t.id, title:t.title, artist:author.name, artistId:author.id, cover:t.cover, audio:t.audio}) %>' title="Play">▶</button>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+  <section class="module">
+    <header class="module-head"><h2>Био</h2><span>about</span></header>
+    <div class="module-body"><p class="plain"><%= author.bio %></p><div class="chipline"><a class="chip" href="#">VK</a><a class="chip" href="#">YouTube</a><a class="chip" href="#">Instagram</a></div></div>
+  </section>
+</div>

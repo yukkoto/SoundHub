@@ -1,0 +1,22 @@
+<section class="module">
+  <header class="module-head"><h2>Лайкнутая библиотека</h2><span><%= likedTracks.length %> треков</span></header>
+  <div class="module-body">
+    <% if (!likedTracks.length) { %>
+      <div class="empty">Пока пусто. Нажми ❤ у трека — и он появится здесь.</div>
+    <% } else { %>
+      <div class="track-list">
+        <% likedTracks.forEach((t) => { %>
+          <article class="track-unit">
+            <div class="cover"><img src="<%= t.cover %>" alt=""></div>
+            <div class="meta"><div class="t"><a href="/track/<%= t.id %>"><%= t.title %></a></div><div class="a"><%= t.artist %> • <%= t.genre %></div></div>
+            <div class="right">
+              <span class="pill"><%= t.duration %></span>
+              <button class="likebtn liked" data-like-id="<%= t.id %>" aria-label="Убрать лайк">❤</button>
+              <button class="iconbtn" data-play='<%= JSON.stringify({id:t.id, title:t.title, artist:t.artist, artistId:t.artistId, cover:t.cover, audio:t.audio}) %>' title="Play">▶</button>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</section>

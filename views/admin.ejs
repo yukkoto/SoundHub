@@ -1,0 +1,54 @@
+<div class="deck admin-deck">
+  <div class="stack-col">
+    <section class="module">
+      <header class="module-head"><h2>Очередь модерации</h2><span><%= pending.length %> pending</span></header>
+      <div class="module-body">
+        <% if (!pending.length) { %><div class="empty">Сейчас нет треков в ожидании.</div><% } else { %>
+          <div class="track-list">
+            <% pending.forEach(t => { %>
+              <article class="track-unit">
+                <div class="cover"><img src="<%= t.cover %>" alt=""></div>
+                <div class="meta"><div class="t"><a href="/track/<%= t.id %>"><%= t.title %></a></div><div class="a"><%= t.artist %> • <span class="pill status pending">pending</span></div></div>
+                <div class="right"><form method="post" action="/admin/tracks/<%= t.id %>/approve"><button class="btn rail-btn-accent" type="submit">Одобрить</button></form><form method="post" action="/admin/tracks/<%= t.id %>/reject"><button class="btn" type="submit">Отклонить</button></form><form method="post" action="/admin/tracks/<%= t.id %>/delete" onsubmit="return confirm('Удалить трек?')"><button class="btn" type="submit">Удалить</button></form></div>
+              </article>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+    </section>
+
+    <section class="module">
+      <header class="module-head"><h2>Отклоненные</h2><span><%= rejected.length %> rejected</span></header>
+      <div class="module-body">
+        <% if (!rejected.length) { %><div class="empty">Пусто.</div><% } else { %>
+          <div class="track-list">
+            <% rejected.forEach(t => { %>
+              <article class="track-unit">
+                <div class="cover"><img src="<%= t.cover %>" alt=""></div>
+                <div class="meta"><div class="t"><a href="/track/<%= t.id %>"><%= t.title %></a></div><div class="a"><%= t.artist %> • <span class="pill status rejected">rejected</span></div></div>
+                <div class="right"><form method="post" action="/admin/tracks/<%= t.id %>/approve"><button class="btn rail-btn-accent" type="submit">Опубликовать</button></form><form method="post" action="/admin/tracks/<%= t.id %>/delete" onsubmit="return confirm('Удалить трек?')"><button class="btn" type="submit">Удалить</button></form></div>
+              </article>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+    </section>
+  </div>
+
+  <section class="module">
+    <header class="module-head"><h2>Подборки</h2><span><%= playlists.length %> lists</span></header>
+    <div class="module-body">
+      <% if (!playlists.length) { %><div class="empty">Нет подборок. Добавь их в <code>data/playlists.json</code>.</div><% } else { %>
+        <div class="track-list">
+          <% playlists.forEach(p => { %>
+            <article class="track-unit slim">
+              <div class="meta"><div class="t"><a href="/playlist/<%= p.id %>"><%= p.title %></a></div><div class="a"><%= (p.trackIds || []).length %> треков • <%= p.owner %></div></div>
+              <div class="right"><form method="post" action="/admin/playlists/<%= p.id %>/delete" onsubmit="return confirm('Удалить подборку?')"><button class="btn" type="submit">Удалить</button></form></div>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+      <div class="row-actions"><a class="btn" href="/playlists">Открыть подборки</a></div>
+    </div>
+  </section>
+</div>

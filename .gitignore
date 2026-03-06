@@ -1,0 +1,15 @@
+node_modules/
+
+.DS_Store
+*.log
+
+.env
+.env.*
+*.env
+jnj.env
+
+public/uploads/*
+!public/uploads/audio/
+!public/uploads/audio/.gitkeep
+!public/uploads/covers/
+!public/uploads/covers/.gitkeep
