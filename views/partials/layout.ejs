@@ -11,8 +11,10 @@
     <header class="workspace-top">
       <div class="ws-left">
         <button class="tool-btn" id="navToggle" aria-label="Показать меню">⋯</button>
-        <a class="brand" href="/"><span class="dot"></span><span>SoundHub</span></a>
-
+        <a class="brand" href="/">
+          <span class="brand-mark"><span class="brand-mark-core"></span></span>
+          <span>SoundHub</span>
+        </a>
       </div>
 
       <nav class="top-nav" id="topNav">
@@ -27,20 +29,19 @@
           <% } %>
         </div>
         <div class="nav-group nav-group-account">
-          <button class="tool-btn" id="toggleTheme" title="Светлый/тёмный режим">Тема</button>
+          <button class="tool-btn" id="toggleTheme" title="Светлый/тёмный режим">Light</button>
           <a class="nav-link" href="/profile"><%= currentUser ? 'Профиль' : 'Гость' %></a>
           <% if (currentUser && currentUser.role === 'admin') { %>
-            <a class="exit nav-link " href="/admin">Админ</a>
+            <a class="nav-link" href="/admin">Админ</a>
           <% } %>
           <% if (currentUser) { %>
-            <a class="exit nav-link  " href="/logout">Выйти</a>
+            <a class="nav-link" href="/logout">Выйти</a>
           <% } else { %>
             <a class="nav-link" href="/register">Регистрация</a>
-            <a class="exit nav-link  " href="/login">Войти</a>
+            <a class="nav-link login-link" href="/login">Войти</a>
           <% } %>
         </div>
       </nav>
-
     </header>
 
     <main class="stage">
@@ -51,9 +52,9 @@
       </section>
 
       <section class="quickstrip" aria-label="Быстрые переходы">
-        <a class="quick-item" href="/search"><span>Найти</span><b>Умный поиск</b><small>Быстрый обзор треков, артистов и жанров</small></a>
-        <a class="quick-item" href="/library"><span>Коллекция</span><b>Моя медиатека</b><small>Лайки, избранное и быстрый возврат к релизам</small></a>
-        <a class="quick-item" href="/playlists"><span>Списки</span><b>Готовые сеты</b><small>Подборки для фона, дороги и вечернего прослушивания</small></a>
+        <a class="quick-item" href="/search"><span>Обзор</span><b>Структура сайта</b><small>Переход по основным разделам без каталога треков</small></a>
+        <a class="quick-item" href="/library"><span>Профиль</span><b>Личная зона</b><small>Сохранённые разделы, профиль и текущий статус аккаунта</small></a>
+        <a class="quick-item" href="/playlists"><span>Списки</span><b>Пустые подборки</b><small>Подборки остаются как структура и могут быть заполнены позже</small></a>
       </section>
 
       <%- body %>

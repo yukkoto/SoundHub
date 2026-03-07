@@ -38,7 +38,7 @@
   <section class="module">
     <header class="module-head"><h2>Подборки</h2><span><%= playlists.length %> lists</span></header>
     <div class="module-body">
-      <% if (!playlists.length) { %><div class="empty">Нет подборок. Добавь их в <code>data/playlists.json</code>.</div><% } else { %>
+      <% if (!playlists.length) { %><div class="empty">Список подборок сейчас пуст.</div><% } else { %>
         <div class="track-list">
           <% playlists.forEach(p => { %>
             <article class="track-unit slim">

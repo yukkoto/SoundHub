@@ -18,12 +18,53 @@
 npm install
 ```
 
-2) Запусти сервер:
+2) Создай `.env` на основе `.env.example`.
+
+3) Основной запуск одной командой:
 ```bash
 npm start
 ```
 
-Открой: http://localhost:3000
+Эта команда:
+- поднимает PostgreSQL в Docker,
+- ждёт готовность базы,
+- применяет схему и сиды,
+- запускает приложение на `http://localhost:3000`.
+
+## Альтернативный запуск двумя командами
+Если хочешь отдельно управлять базой и приложением:
+
+```bash
+npm run db:up
+npm run app:only
+```
+
+Если Docker не установлен, но PostgreSQL уже запущен локально, используй:
+
+```bash
+npm run start:local
+```
+
+Дополнительные команды:
+
+```bash
+npm run db:migrate
+npm run db:seed
+npm run db:down
+```
+
+## PostgreSQL
+PostgreSQL поднимается в Docker и пробрасывается на:
+
+- `localhost:5432`
+
+По умолчанию используются значения из `.env.example`:
+
+- database: `soundhub`
+- user: `soundhub`
+- password: `soundhub`
+
+Это позволяет подключаться к базе через DBeaver, TablePlus, psql и другие локальные клиенты.
 
 > Если `npm install` падает с ошибкой вроде **`Exit handler never called!`**, это обычно проблема вашей версии npm/Node.
 > Часто помогает обновить npm (`npm i -g npm@latest`) или перейти на стабильную LTS-версию Node.js (например 20/22) через nvm.
@@ -76,5 +117,6 @@ Callback URL'ы (их нужно прописать в настройках пр
 - `/search` — обзор/поиск
 
 ## Данные
-Демо-данные лежат в `data/*.json`.  
+Источник данных теперь PostgreSQL. SQL-схема лежит в `db/schema.sql`, демо-сиды в `db/seed.sql`.
+
 Аудио-заглушка: `public/audio/sample.wav` (короткий тон, чтобы плеер работал без интернета).

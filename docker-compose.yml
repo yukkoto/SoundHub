@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-soundhub}
+      POSTGRES_USER: ${PGUSER:-soundhub}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-soundhub}
+    ports:
+      - "127.0.0.1:${PGPORT:-5432}:5432"
+    volumes:
+      - soundhub_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${PGUSER:-soundhub} -d ${PGDATABASE:-soundhub}
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  soundhub_pgdata:

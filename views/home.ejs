@@ -1,70 +1,24 @@
-<% const spotlightTrack = newTracks && newTracks.length ? newTracks[0] : null; %>
-
-<% if (spotlightTrack) { %>
-  <section class="module feature-hero">
+<div class="deck two-col">
+  <section class="module">
+    <header class="module-head"><h2>Каталог скрыт</h2><span>no tracks</span></header>
     <div class="module-body">
-      <div class="feature-panel">
-        <div class="feature-copy">
-          <p class="eyebrow">Фокус недели</p>
-          <h2><%= spotlightTrack.title %></h2>
-          <p class="feature-text">
-            <%= spotlightTrack.artist %> • <%= spotlightTrack.genre %> • <%= spotlightTrack.duration %>
-          </p>
-          <div class="feature-actions">
-            <a class="btn rail-btn-accent" href="/track/<%= spotlightTrack.id %>">Открыть релиз</a>
-            <a class="btn" href="/author/<%= spotlightTrack.artistId %>">Страница артиста</a>
-          </div>
-        </div>
-        <a class="feature-cover" href="/track/<%= spotlightTrack.id %>">
-          <img src="<%= spotlightTrack.cover %>" alt="<%= spotlightTrack.title %>">
-        </a>
+      <div class="empty">Сейчас на сайте нет треков. Можно оставить только структуру платформы, аккаунты и навигацию.</div>
+      <div class="row-actions">
+        <a class="btn" href="/search">Обзор</a>
+        <a class="btn" href="/playlists">Подборки</a>
       </div>
     </div>
   </section>
-<% } %>
-
-<div class="deck two-col">
-  <section class="module">
-    <header class="module-head"><h2>Новые релизы</h2><span>свежая подборка</span></header>
-    <div class="module-body">
-      <% if (!newTracks.length) { %>
-        <div class="empty">Каталог пока пуст. Добавь первый трек через загрузку артиста или админку.</div>
-      <% } else { %>
-        <div class="coverwall">
-          <% newTracks.forEach(t => { %>
-            <a class="wall-card" href="/track/<%= t.id %>">
-              <img src="<%= t.cover %>" alt="">
-              <div class="wall-meta">
-                <div class="wall-title"><%= t.title %></div>
-                <div class="wall-sub"><%= t.artist %> • <%= t.genre %></div>
-              </div>
-            </a>
-          <% }) %>
-        </div>
-      <% } %>
-    </div>
-  </section>
 
   <section class="module">
-    <header class="module-head"><h2>Топ эфира</h2><span>сейчас слушают</span></header>
+    <header class="module-head"><h2>Что осталось</h2><span>platform</span></header>
     <div class="module-body">
-      <% if (!topTracks.length) { %>
-        <div class="empty">Прослушивания начнут копиться после появления первых треков.</div>
-      <% } else { %>
-        <div class="track-list">
-          <% topTracks.forEach(t => { %>
-            <article class="track-unit">
-              <div class="cover"><img src="<%= t.cover %>" alt=""></div>
-              <div class="meta"><div class="t"><%= t.title %></div><div class="a"><%= t.artist %></div></div>
-              <div class="right">
-                <span class="pill"><%= t.duration %></span>
-                <button class="likebtn <%= t.isLiked ? 'liked' : '' %>" data-like-id="<%= t.id %>" aria-label="Лайк">❤</button>
-                <button class="iconbtn" data-play='<%= JSON.stringify({id:t.id, title:t.title, artist:t.artist, artistId:t.artistId, cover:t.cover, audio:t.audio}) %>' title="Play">▶</button>
-              </div>
-            </article>
-          <% }) %>
-        </div>
-      <% } %>
+      <p class="plain">Шапка, профиль, роли, админка и база данных остаются рабочими. Каталог можно вернуть позже, когда понадобится.</p>
+      <div class="chipline">
+        <a class="chip" href="/profile">Профиль</a>
+        <a class="chip" href="/register">Регистрация</a>
+        <a class="chip" href="/login">Вход</a>
+      </div>
     </div>
   </section>
 </div>

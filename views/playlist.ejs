@@ -2,15 +2,19 @@
   <section class="module">
     <header class="module-head"><h2><%= playlist.title %></h2><span><%= playlist.owner %> • <%= playlist.total %></span></header>
     <div class="module-body">
-      <div class="track-list">
-        <% items.forEach((t, idx) => { %>
-          <article class="track-unit">
-            <div class="cover"><img src="<%= t.cover %>" alt=""></div>
-            <div class="meta"><div class="t"><%= idx + 1 %>. <%= t.title %></div><div class="a"><%= t.artist %> • <%= t.genre %></div></div>
-            <div class="right"><span class="pill"><%= t.duration %></span><button class="likebtn <%= t.isLiked ? 'liked' : '' %>" data-like-id="<%= t.id %>" aria-label="Лайк">❤</button><button class="iconbtn" data-play='<%= JSON.stringify({id:t.id, title:t.title, artist:t.artist, artistId:t.artistId, cover:t.cover, audio:t.audio}) %>' title="Play">▶</button></div>
-          </article>
-        <% }) %>
-      </div>
+      <% if (!items.length) { %>
+        <div class="empty">В этой подборке сейчас нет треков.</div>
+      <% } else { %>
+        <div class="track-list">
+          <% items.forEach((t, idx) => { %>
+            <article class="track-unit">
+              <div class="cover"><img src="<%= t.cover %>" alt=""></div>
+              <div class="meta"><div class="t"><%= idx + 1 %>. <%= t.title %></div><div class="a"><%= t.artist %> • <%= t.genre %></div></div>
+              <div class="right"><span class="pill"><%= t.duration %></span><button class="likebtn <%= t.isLiked ? 'liked' : '' %>" data-like-id="<%= t.id %>" aria-label="Лайк">❤</button><button class="iconbtn" data-play='<%= JSON.stringify({id:t.id, title:t.title, artist:t.artist, artistId:t.artistId, cover:t.cover, audio:t.audio}) %>' title="Play">▶</button></div>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
     </div>
   </section>
   <section class="module">

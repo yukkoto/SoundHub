@@ -1,8 +1,8 @@
 <section class="module">
-  <header class="module-head"><h2>Лайкнутая библиотека</h2><span><%= likedTracks.length %> треков</span></header>
+  <header class="module-head"><h2>Библиотека</h2><span><%= likedTracks.length %> треков</span></header>
   <div class="module-body">
     <% if (!likedTracks.length) { %>
-      <div class="empty">Пока пусто. Нажми ❤ у трека — и он появится здесь.</div>
+      <div class="empty">Сейчас на сайте нет треков, поэтому библиотека пустая.</div>
     <% } else { %>
       <div class="track-list">
         <% likedTracks.forEach((t) => { %>
