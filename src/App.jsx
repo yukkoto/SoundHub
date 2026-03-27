@@ -121,6 +121,88 @@ function genericTagline(value, fallback = 'Артист SoundHub') {
   return normalized;
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function formatPlaybackTime(value) {
+  if (!Number.isFinite(value) || value <= 0) return '0:00';
+  const totalSeconds = Math.floor(value);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function resolveTrackSource(track) {
+  return track?.audio || track?.preview || null;
+}
+
+function trackIdentity(track) {
+  if (track?.id) return `id:${track.id}`;
+  const source = resolveTrackSource(track);
+  if (source) return `src:${source}`;
+  return `fallback:${track?.title || ''}:${track?.artist || track?.artistName || ''}`;
+}
+
+function isSameTrack(left, right) {
+  return Boolean(left && right) && trackIdentity(left) === trackIdentity(right);
+}
+
+function toAbsoluteUrl(value) {
+  if (!value) return '';
+  if (typeof window === 'undefined') return String(value);
+  try {
+    return new URL(String(value), window.location.origin).href;
+  } catch (_) {
+    return String(value);
+  }
+}
+
+function buildPlaybackQueue(queue, currentTrack) {
+  const items = [];
+  const seen = new Set();
+  const sourceQueue = Array.isArray(queue) && queue.length ? queue : [];
+
+  for (const item of sourceQueue) {
+    if (!item) continue;
+    const key = trackIdentity(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push({
+      ...item,
+      audio: resolveTrackSource(item)
+    });
+  }
+
+  if (currentTrack) {
+    const currentKey = trackIdentity(currentTrack);
+    if (!seen.has(currentKey)) {
+      items.push({
+        ...currentTrack,
+        audio: resolveTrackSource(currentTrack)
+      });
+    }
+  }
+
+  const index = currentTrack ? items.findIndex(item => isSameTrack(item, currentTrack)) : -1;
+  return {
+    items,
+    index
+  };
+}
+
+function sanitizeClientNextUrl(nextUrl) {
+  const value = String(nextUrl || '/');
+  if (!value.startsWith('/') || value.startsWith('//')) return '/';
+  return value;
+}
+
 function AppProvider({ children }) {
   const [bootstrap, setBootstrap] = useState({
     loading: true,
@@ -133,13 +215,32 @@ function AppProvider({ children }) {
     return localStorage.getItem('soundhub_theme') || 'night';
   });
   const [toast, setToast] = useState(null);
-  const [player, setPlayer] = useState({
-    current: null,
-    playing: false,
-    currentTime: 0,
-    duration: 0
+  const [player, setPlayer] = useState(() => {
+    let volume = 0.72;
+
+    if (typeof window !== 'undefined') {
+      const savedVolume = Number(localStorage.getItem('soundhub_volume'));
+      if (Number.isFinite(savedVolume)) volume = clamp(savedVolume, 0, 1);
+    }
+
+    return {
+      current: null,
+      playing: false,
+      currentTime: 0,
+      duration: 0,
+      queue: [],
+      currentIndex: -1,
+      volume
+    };
   });
   const audioRef = useRef(null);
+  const playerRef = useRef(player);
+  const notifyRef = useRef(() => {});
+  const playTrackRef = useRef(() => Promise.resolve());
+
+  useEffect(() => {
+    playerRef.current = player;
+  }, [player]);
 
   useEffect(() => {
     let cancelled = false;
@@ -167,11 +268,26 @@ function AppProvider({ children }) {
     localStorage.setItem('soundhub_theme', theme);
   }, [theme]);
 
+  function notify(message, tone = 'info') {
+    setToast({ message, tone });
+  }
+
+  notifyRef.current = notify;
+
   useEffect(() => {
     if (!toast) return undefined;
     const timeoutId = window.setTimeout(() => setToast(null), 2800);
     return () => window.clearTimeout(timeoutId);
   }, [toast]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) audio.volume = player.volume;
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('soundhub_volume', String(player.volume));
+    }
+  }, [player.volume]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -187,15 +303,26 @@ function AppProvider({ children }) {
     };
 
     const handleEnded = () => {
+      const snapshot = playerRef.current;
+      const nextTrack = snapshot.queue[snapshot.currentIndex + 1];
+
+      if (nextTrack) {
+        playTrackRef.current(nextTrack, {
+          queue: snapshot.queue,
+          index: snapshot.currentIndex + 1
+        });
+        return;
+      }
+
       setPlayer(prev => ({
         ...prev,
         playing: false,
-        currentTime: 0
+        currentTime: prev.duration
       }));
     };
 
     const handleError = () => {
-      notify('Не удалось воспроизвести этот трек', 'error');
+      notifyRef.current('Не удалось воспроизвести этот трек', 'error');
       setPlayer(prev => ({
         ...prev,
         playing: false
@@ -218,27 +345,6 @@ function AppProvider({ children }) {
       audio.removeEventListener('error', handleError);
     };
   }, []);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio || !player.current) return;
-
-    const source = player.current.audio || player.current.preview;
-    if (!source) return;
-
-    if (audio.src !== source) {
-      audio.src = source;
-    }
-
-    audio.play().catch(() => {
-      notify('Браузер заблокировал автозапуск. Нажми кнопку воспроизведения ещё раз.', 'warning');
-      setPlayer(prev => ({ ...prev, playing: false }));
-    });
-  }, [player.current]);
-
-  function notify(message, tone = 'info') {
-    setToast({ message, tone });
-  }
 
   async function reloadBootstrap(silent = false) {
     if (!silent) setBootstrap(prev => ({ ...prev, loading: true }));
@@ -263,30 +369,136 @@ function AppProvider({ children }) {
     setTheme(prev => (prev === 'light' ? 'night' : 'light'));
   }
 
-  async function playTrack(track) {
+  function mergeTrackIntoPlayer(resolvedTrack) {
+    const source = resolveTrackSource(resolvedTrack);
+
+    setPlayer(prev => {
+      if (!isSameTrack(prev.current, resolvedTrack)) return prev;
+
+      const mergedCurrent = {
+        ...prev.current,
+        ...resolvedTrack,
+        audio: source || resolveTrackSource(prev.current)
+      };
+
+      const nextQueue = prev.queue.map(item =>
+        isSameTrack(item, resolvedTrack)
+          ? {
+              ...item,
+              ...resolvedTrack,
+              audio: source || resolveTrackSource(item)
+            }
+          : item
+      );
+
+      return {
+        ...prev,
+        current: mergedCurrent,
+        queue: nextQueue,
+        duration: resolvedTrack.durationSeconds || prev.duration
+      };
+    });
+  }
+
+  async function startPlayback(track, options = {}) {
+    const audio = audioRef.current;
+    const source = resolveTrackSource(track);
+
+    if (!audio || !source) {
+      throw new Error('У этого трека нет доступного аудио');
+    }
+
+    const preparedTrack = {
+      ...track,
+      audio: source
+    };
+    const preparedQueue = buildPlaybackQueue(options.queue, preparedTrack);
+    const nextIndex =
+      Number.isInteger(options.index) && options.index >= 0 ? options.index : preparedQueue.index;
+    const sameSource = toAbsoluteUrl(audio.src) === toAbsoluteUrl(source);
+    const shouldRestart = options.restart !== false;
+
+    if (!sameSource) {
+      audio.src = source;
+      audio.currentTime = 0;
+    } else if (shouldRestart) {
+      audio.currentTime = 0;
+    }
+
+    setPlayer(prev => ({
+      ...prev,
+      current: preparedTrack,
+      playing: true,
+      currentTime: shouldRestart || !sameSource ? 0 : audio.currentTime || prev.currentTime,
+      duration: preparedTrack.durationSeconds || (sameSource && !shouldRestart ? prev.duration : 0),
+      queue: preparedQueue.items,
+      currentIndex: nextIndex
+    }));
+
+    try {
+      await audio.play();
+    } catch (error) {
+      setPlayer(prev => ({
+        ...prev,
+        playing: false
+      }));
+      throw error;
+    }
+  }
+
+  async function playTrack(track, options = {}) {
     if (!track) return;
 
     try {
-      let resolved = track;
-      if (track.id) {
-        const payload = await requestJson(`/api/tracks/${track.id}`);
-        resolved = payload.track;
-        requestJson(`/api/play/${track.id}`, { method: 'POST' }).catch(() => {});
+      const source = resolveTrackSource(track);
+
+      if (source) {
+        await startPlayback(
+          {
+            ...track,
+            audio: source
+          },
+          options
+        );
+
+        if (track.id) {
+          requestJson(`/api/play/${track.id}`, { method: 'POST' }).catch(() => {});
+          requestJson(`/api/tracks/${track.id}`)
+            .then(payload => {
+              if (payload?.track) mergeTrackIntoPlayer(payload.track);
+            })
+            .catch(() => {});
+        }
+
+        return;
       }
 
-      const source = resolved.audio || resolved.preview;
-      if (!source) throw new Error('У этого трека нет доступного аудио');
+      if (!track.id) {
+        throw new Error('У этого трека нет доступного аудио');
+      }
 
-      setPlayer({
-        current: { ...resolved, audio: source },
-        playing: true,
-        currentTime: 0,
-        duration: resolved.durationSeconds || 0
-      });
+      const payload = await requestJson(`/api/tracks/${track.id}`);
+      const resolved = payload.track;
+      const resolvedSource = resolveTrackSource(resolved);
+
+      if (!resolvedSource) {
+        throw new Error('У этого трека нет доступного аудио');
+      }
+
+      await startPlayback(
+        {
+          ...resolved,
+          audio: resolvedSource
+        },
+        options
+      );
+      requestJson(`/api/play/${track.id}`, { method: 'POST' }).catch(() => {});
     } catch (error) {
       notify(error.message || 'Не удалось подготовить трек', 'error');
     }
   }
+
+  playTrackRef.current = playTrack;
 
   function togglePlayback() {
     const audio = audioRef.current;
@@ -298,10 +510,50 @@ function AppProvider({ children }) {
     }
   }
 
-  function seekTo(ratio) {
+  function seekTo(value) {
     const audio = audioRef.current;
-    if (!audio || !player.duration) return;
-    audio.currentTime = Math.max(0, Math.min(player.duration, player.duration * ratio));
+    const duration = Number.isFinite(audio?.duration) && audio.duration > 0 ? audio.duration : playerRef.current.duration;
+    if (!audio || !duration) return;
+
+    const nextTime = clamp(Number(value) || 0, 0, duration);
+    audio.currentTime = nextTime;
+    setPlayer(prev => ({
+      ...prev,
+      currentTime: nextTime
+    }));
+  }
+
+  function setVolume(value) {
+    const nextVolume = clamp(Number(value) || 0, 0, 1);
+    const audio = audioRef.current;
+    if (audio) audio.volume = nextVolume;
+    setPlayer(prev => ({
+      ...prev,
+      volume: nextVolume
+    }));
+  }
+
+  function skipTrack(step) {
+    const snapshot = playerRef.current;
+    const audio = audioRef.current;
+
+    if (!snapshot.current) return;
+
+    if (step < 0 && audio && audio.currentTime > 3) {
+      seekTo(0);
+      return;
+    }
+
+    const nextIndex = snapshot.currentIndex + step;
+    if (nextIndex < 0 || nextIndex >= snapshot.queue.length) {
+      if (step < 0) seekTo(0);
+      return;
+    }
+
+    playTrack(snapshot.queue[nextIndex], {
+      queue: snapshot.queue,
+      index: nextIndex
+    });
   }
 
   async function toggleLike(trackId) {
@@ -455,6 +707,8 @@ function AppProvider({ children }) {
     playTrack,
     togglePlayback,
     seekTo,
+    skipTrack,
+    setVolume,
     toggleLike,
     createPlaylist,
     addTrackToPlaylist,
@@ -702,7 +956,7 @@ function PlaylistAdder({ trackId }) {
   );
 }
 
-function TrackCard({ track }) {
+function TrackCard({ track, queue = [] }) {
   const app = useApp();
   const likeLabel = track.isLiked ? 'Убрать из понравившихся' : 'Добавить в понравившиеся';
   const cardBadge = trackBadgeLabel(track);
@@ -734,10 +988,13 @@ function TrackCard({ track }) {
             type="button"
             onClick={() =>
               app
-                .playTrack({
-                  ...track,
-                  audio: track.audio || track.preview
-                })
+                .playTrack(
+                  {
+                    ...track,
+                    audio: track.audio || track.preview
+                  },
+                  { queue }
+                )
                 .catch?.(() => {})
             }
           >
@@ -833,7 +1090,7 @@ function HomePage() {
           </div>
           <div className="track-grid">
             {state.data.topTracks.map(track => (
-              <TrackCard key={track.id} track={track} />
+              <TrackCard key={track.id} track={track} queue={state.data.topTracks} />
             ))}
           </div>
         </section>
@@ -852,7 +1109,7 @@ function HomePage() {
           </div>
           <div className="track-grid compact-grid">
             {state.data.featuredTracks.map(track => (
-              <TrackCard key={track.id} track={track} />
+              <TrackCard key={track.id} track={track} queue={state.data.featuredTracks} />
             ))}
           </div>
         </section>
@@ -999,7 +1256,7 @@ function SearchPage() {
               {state.data.localResults.length ? (
                 <div className="track-grid">
                   {state.data.localResults.map(track => (
-                    <TrackCard key={track.id} track={track} />
+                    <TrackCard key={track.id} track={track} queue={state.data.localResults} />
                   ))}
                 </div>
               ) : (
@@ -1019,7 +1276,11 @@ function SearchPage() {
               </div>
               <div className="track-grid compact-grid">
                 {(deferredQuery ? state.data.discoveries : state.data.charts).map(track => (
-                  <TrackCard key={track.id} track={track} />
+                  <TrackCard
+                    key={track.id}
+                    track={track}
+                    queue={deferredQuery ? state.data.discoveries : state.data.charts}
+                  />
                 ))}
               </div>
             </section>
@@ -1151,7 +1412,7 @@ function PlaylistPage() {
         <div className="track-grid">
           {state.data.items.map(track => (
             <div key={track.id} className="stacked-card">
-              <TrackCard track={track} />
+              <TrackCard track={track} queue={state.data.items} />
               {canManage ? (
                 <button
                   className="ghost-btn small-btn"
@@ -1208,7 +1469,7 @@ function AuthorPage() {
 
       <div className="track-grid">
         {state.data.tracks.map(track => (
-          <TrackCard key={track.id} track={track} />
+          <TrackCard key={track.id} track={track} queue={state.data.tracks} />
         ))}
       </div>
     </PageFrame>
@@ -1224,6 +1485,7 @@ function TrackPage() {
   if (state.error) return <ErrorBlock error={state.error} onRetry={state.refresh} />;
 
   const track = state.data.track;
+  const playbackQueue = [track, ...state.data.related];
 
   return (
     <PageFrame
@@ -1232,7 +1494,7 @@ function TrackPage() {
       subtitle={`${track.artist} • ${track.albumTitle || track.genre}`}
       actions={
         <div className="page-actions">
-          <button className="primary-btn" type="button" onClick={() => app.playTrack(track)}>
+          <button className="primary-btn" type="button" onClick={() => app.playTrack(track, { queue: playbackQueue })}>
             Слушать
           </button>
         </div>
@@ -1272,7 +1534,7 @@ function TrackPage() {
         </div>
         <div className="track-grid compact-grid">
           {state.data.related.map(item => (
-            <TrackCard key={item.id} track={item} />
+            <TrackCard key={item.id} track={item} queue={playbackQueue} />
           ))}
         </div>
       </section>
@@ -1300,7 +1562,7 @@ function LibraryPage() {
       {state.data.likedTracks.length ? (
         <div className="track-grid">
           {state.data.likedTracks.map(track => (
-            <TrackCard key={track.id} track={track} />
+            <TrackCard key={track.id} track={track} queue={state.data.likedTracks} />
           ))}
         </div>
       ) : (
@@ -1310,9 +1572,26 @@ function LibraryPage() {
   );
 }
 
+function OAuthLink({ enabled, href, children }) {
+  if (!enabled) {
+    return (
+      <button className="ghost-btn is-disabled" type="button" disabled>
+        {children}
+      </button>
+    );
+  }
+
+  return (
+    <a className="ghost-btn" href={href}>
+      {children}
+    </a>
+  );
+}
+
 function ProfilePage() {
   const app = useApp();
   const viewer = app.bootstrap.data?.user || null;
+  const providers = app.bootstrap.data?.providers || {};
   const state = useAsyncData(() => requestJson('/api/profile'), [app.catalogVersion]);
 
   if (state.loading) return <LoadingBlock label="Открываю профиль" />;
@@ -1358,15 +1637,15 @@ function ProfilePage() {
                 </div>
               </div>
               <div className="oauth-grid">
-                <a className="ghost-btn" href="/auth/google?next=/profile">
+                <OAuthLink enabled={providers.google} href="/auth/google?next=/profile">
                   Google
-                </a>
-                <a className="ghost-btn" href="/auth/yandex?next=/profile">
+                </OAuthLink>
+                <OAuthLink enabled={providers.yandex} href="/auth/yandex?next=/profile">
                   Yandex
-                </a>
-                <a className="ghost-btn" href="/auth/vk?next=/profile">
+                </OAuthLink>
+                <OAuthLink enabled={providers.vk} href="/auth/vk?next=/profile">
                   VK
-                </a>
+                </OAuthLink>
               </div>
             </section>
           </div>
@@ -1450,7 +1729,7 @@ function AdminPage() {
             <div className="track-grid compact-grid">
               {state.data.pending.map(track => (
                 <div key={track.id} className="stacked-card">
-                  <TrackCard track={track} />
+                  <TrackCard track={track} queue={state.data.pending} />
                   <div className="track-actions">
                     <button className="primary-btn small-btn" type="button" onClick={() => app.approveTrack(track.id)}>
                       Опубликовать
@@ -1480,7 +1759,7 @@ function AdminPage() {
           {state.data.rejected.length ? (
             <div className="track-grid compact-grid">
               {state.data.rejected.map(track => (
-                <TrackCard key={track.id} track={track} />
+                <TrackCard key={track.id} track={track} queue={state.data.rejected} />
               ))}
             </div>
           ) : (
@@ -1594,9 +1873,12 @@ function LoginPage() {
   const app = useApp();
   const navigate = useNavigate();
   const location = useLocation();
-  const nextUrl = new URLSearchParams(location.search).get('next') || '/profile';
+  const nextUrl = sanitizeClientNextUrl(new URLSearchParams(location.search).get('next') || '/profile');
+  const providers = app.bootstrap.data?.providers || {};
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [pending, setPending] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   return (
     <PageFrame eyebrow="Вход" title="Авторизация" subtitle="Войди в аккаунт или используй быстрый вход, чтобы сохранить свою медиатеку.">
@@ -1605,53 +1887,77 @@ function LoginPage() {
           className="compose-card"
           onSubmit={event => {
             event.preventDefault();
+            setErrorMessage('');
+            setPending(true);
             app
               .login({ email, password })
               .then(() => navigate(nextUrl))
-              .catch(error => app.notify(error.message, 'error'));
+              .catch(error => {
+                const message = error.message || 'Войти не удалось';
+                setErrorMessage(message);
+                app.notify(message, 'error');
+              })
+              .finally(() => setPending(false));
           }}
         >
+          {errorMessage ? <InlineAlert tone="error">{errorMessage}</InlineAlert> : null}
           <div className="form-grid">
-            <input value={email} onChange={event => setEmail(event.target.value)} placeholder="Email" />
+            <input
+              value={email}
+              onChange={event => setEmail(event.target.value)}
+              placeholder="Email"
+              type="email"
+              autoComplete="username"
+              required
+            />
             <input
               value={password}
               onChange={event => setPassword(event.target.value)}
               placeholder="Пароль"
               type="password"
+              autoComplete="current-password"
+              required
             />
           </div>
-          <button className="primary-btn" type="submit">
-            Войти
-          </button>
+          <div className="track-actions">
+            <button className="primary-btn" type="submit" disabled={pending}>
+              {pending ? 'Входим...' : 'Войти'}
+            </button>
+            <Link className="ghost-btn" to={`/register?next=${encodeURIComponent(nextUrl)}`}>
+              Создать аккаунт
+            </Link>
+          </div>
+          <p className="form-note">Можно войти по email и паролю или использовать быстрый демо-доступ ниже.</p>
         </form>
 
         <section className="panel">
-            <div className="section-head">
-              <div>
-                <span className="eyebrow">Быстрый доступ</span>
-                <h2>Быстрый вход</h2>
-              </div>
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">Быстрый доступ</span>
+              <h2>Быстрый вход</h2>
             </div>
-            <div className="oauth-grid">
-              <a className="ghost-btn" href={`/login/demo/user?next=${encodeURIComponent(nextUrl)}`}>
-                Гость
-              </a>
-              <a className="ghost-btn" href={`/login/demo/artist?next=${encodeURIComponent(nextUrl)}`}>
-                Исполнитель
-              </a>
-              <a className="ghost-btn" href={`/login/demo/admin?next=${encodeURIComponent(nextUrl)}`}>
-                Администратор
-              </a>
-              <a className="ghost-btn" href={`/auth/google?next=${encodeURIComponent(nextUrl)}`}>
-                Google
-            </a>
-            <a className="ghost-btn" href={`/auth/yandex?next=${encodeURIComponent(nextUrl)}`}>
-              Yandex
-            </a>
-            <a className="ghost-btn" href={`/auth/vk?next=${encodeURIComponent(nextUrl)}`}>
-              VK
-            </a>
           </div>
+          <div className="oauth-grid">
+            <a className="ghost-btn" href={`/login/demo/user?next=${encodeURIComponent(nextUrl)}`}>
+              Гость
+            </a>
+            <a className="ghost-btn" href={`/login/demo/artist?next=${encodeURIComponent(nextUrl)}`}>
+              Исполнитель
+            </a>
+            <a className="ghost-btn" href={`/login/demo/admin?next=${encodeURIComponent(nextUrl)}`}>
+              Администратор
+            </a>
+            <OAuthLink enabled={providers.google} href={`/auth/google?next=${encodeURIComponent(nextUrl)}`}>
+              Google
+            </OAuthLink>
+            <OAuthLink enabled={providers.yandex} href={`/auth/yandex?next=${encodeURIComponent(nextUrl)}`}>
+              Yandex
+            </OAuthLink>
+            <OAuthLink enabled={providers.vk} href={`/auth/vk?next=${encodeURIComponent(nextUrl)}`}>
+              VK
+            </OAuthLink>
+          </div>
+          <p className="form-note">Если OAuth-кнопка неактивна, этот провайдер не настроен в окружении.</p>
         </section>
       </div>
     </PageFrame>
@@ -1662,54 +1968,112 @@ function RegisterPage() {
   const app = useApp();
   const navigate = useNavigate();
   const location = useLocation();
-  const nextUrl = new URLSearchParams(location.search).get('next') || '/profile';
+  const nextUrl = sanitizeClientNextUrl(new URLSearchParams(location.search).get('next') || '/profile');
+  const providers = app.bootstrap.data?.providers || {};
   const [form, setForm] = useState({
     email: '',
     displayName: '',
     password: '',
     password2: ''
   });
+  const [pending, setPending] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   return (
     <PageFrame eyebrow="Регистрация" title="Создать аккаунт" subtitle="После регистрации лайки и гостевые сохранения будут привязаны к новому профилю.">
-      <form
-        className="compose-card"
-        onSubmit={event => {
-          event.preventDefault();
-          app
-            .register(form)
-            .then(() => navigate(nextUrl))
-            .catch(error => app.notify(error.message, 'error'));
-        }}
-      >
-        <div className="form-grid">
-          <input
-            value={form.email}
-            onChange={event => setForm(prev => ({ ...prev, email: event.target.value }))}
-            placeholder="Email"
-          />
-          <input
-            value={form.displayName}
-            onChange={event => setForm(prev => ({ ...prev, displayName: event.target.value }))}
-            placeholder="Отображаемое имя"
-          />
-          <input
-            value={form.password}
-            onChange={event => setForm(prev => ({ ...prev, password: event.target.value }))}
-            placeholder="Пароль"
-            type="password"
-          />
-          <input
-            value={form.password2}
-            onChange={event => setForm(prev => ({ ...prev, password2: event.target.value }))}
-            placeholder="Повтор пароля"
-            type="password"
-          />
-        </div>
-        <button className="primary-btn" type="submit">
-          Создать аккаунт
-        </button>
-      </form>
+      <div className="content-grid">
+        <form
+          className="compose-card"
+          onSubmit={event => {
+            event.preventDefault();
+            setErrorMessage('');
+
+            if (form.password !== form.password2) {
+              const message = 'Пароли не совпадают';
+              setErrorMessage(message);
+              app.notify(message, 'error');
+              return;
+            }
+
+            setPending(true);
+            app
+              .register(form)
+              .then(() => navigate(nextUrl))
+              .catch(error => {
+                const message = error.message || 'Регистрация не удалась';
+                setErrorMessage(message);
+                app.notify(message, 'error');
+              })
+              .finally(() => setPending(false));
+          }}
+        >
+          {errorMessage ? <InlineAlert tone="error">{errorMessage}</InlineAlert> : null}
+          <div className="form-grid">
+            <input
+              value={form.email}
+              onChange={event => setForm(prev => ({ ...prev, email: event.target.value }))}
+              placeholder="Email"
+              type="email"
+              autoComplete="email"
+              required
+            />
+            <input
+              value={form.displayName}
+              onChange={event => setForm(prev => ({ ...prev, displayName: event.target.value }))}
+              placeholder="Отображаемое имя"
+              autoComplete="nickname"
+            />
+            <input
+              value={form.password}
+              onChange={event => setForm(prev => ({ ...prev, password: event.target.value }))}
+              placeholder="Пароль"
+              type="password"
+              autoComplete="new-password"
+              minLength={6}
+              required
+            />
+            <input
+              value={form.password2}
+              onChange={event => setForm(prev => ({ ...prev, password2: event.target.value }))}
+              placeholder="Повтор пароля"
+              type="password"
+              autoComplete="new-password"
+              minLength={6}
+              required
+            />
+          </div>
+          <div className="track-actions">
+            <button className="primary-btn" type="submit" disabled={pending}>
+              {pending ? 'Создаём...' : 'Создать аккаунт'}
+            </button>
+            <Link className="ghost-btn" to={`/login?next=${encodeURIComponent(nextUrl)}`}>
+              Уже есть аккаунт
+            </Link>
+          </div>
+          <p className="form-note">Локальная регистрация сохраняет аккаунт сразу в базе и авторизует в текущей сессии.</p>
+        </form>
+
+        <section className="panel">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">OAuth</span>
+              <h2>Альтернативный вход</h2>
+            </div>
+          </div>
+          <div className="oauth-grid">
+            <OAuthLink enabled={providers.google} href={`/auth/google?next=${encodeURIComponent(nextUrl)}`}>
+              Google
+            </OAuthLink>
+            <OAuthLink enabled={providers.yandex} href={`/auth/yandex?next=${encodeURIComponent(nextUrl)}`}>
+              Yandex
+            </OAuthLink>
+            <OAuthLink enabled={providers.vk} href={`/auth/vk?next=${encodeURIComponent(nextUrl)}`}>
+              VK
+            </OAuthLink>
+          </div>
+          <p className="form-note">Если провайдеры не настроены, используй обычную регистрацию через email и пароль.</p>
+        </section>
+      </div>
     </PageFrame>
   );
 }
@@ -1736,7 +2100,9 @@ function PlayerBar() {
     );
   }
 
-  const progress = app.player.duration ? app.player.currentTime / app.player.duration : 0;
+  const duration = Math.max(app.player.duration || 0, app.player.currentTime || 0, 0);
+  const hasPrev = app.player.currentIndex > 0;
+  const hasNext = app.player.currentIndex >= 0 && app.player.currentIndex < app.player.queue.length - 1;
 
   return (
     <div className="player-shell">
@@ -1749,9 +2115,15 @@ function PlayerBar() {
       </div>
 
       <div className="player-center">
-        <div className="player-actions">
+        <div className="player-transport">
+          <button className="transport-btn" type="button" onClick={() => app.skipTrack(-1)} disabled={!hasPrev}>
+            Назад
+          </button>
           <button className="primary-btn small-btn" type="button" onClick={app.togglePlayback}>
             {app.player.playing ? 'Пауза' : 'Слушать'}
+          </button>
+          <button className="transport-btn" type="button" onClick={() => app.skipTrack(1)} disabled={!hasNext}>
+            Дальше
           </button>
           {current.id ? (
             <Link className="ghost-btn small-btn" to={`/track/${current.id}`}>
@@ -1759,22 +2131,37 @@ function PlayerBar() {
             </Link>
           ) : null}
         </div>
-        <button
-          className="progress-bar"
-          type="button"
-          onClick={event => {
-            const rect = event.currentTarget.getBoundingClientRect();
-            const ratio = rect.width ? (event.clientX - rect.left) / rect.width : 0;
-            app.seekTo(ratio);
-          }}
-        >
-          <span style={{ width: `${Math.max(0, Math.min(100, progress * 100))}%` }} />
-        </button>
+        <div className="player-progress">
+          <span>{formatPlaybackTime(app.player.currentTime)}</span>
+          <input
+            className="player-slider player-slider-progress"
+            type="range"
+            min="0"
+            max={duration || 1}
+            step="0.1"
+            value={Math.min(app.player.currentTime, duration || 0)}
+            onChange={event => app.seekTo(Number(event.target.value))}
+            aria-label="Перемотка трека"
+          />
+          <span>{formatPlaybackTime(duration)}</span>
+        </div>
       </div>
 
       <div className="player-extra">
-        <span>{Math.floor(app.player.currentTime)}s</span>
-        <span>{Math.floor(app.player.duration)}s</span>
+        <label className="player-volume">
+          <span>Громкость</span>
+          <input
+            className="player-slider"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={app.player.volume}
+            onChange={event => app.setVolume(Number(event.target.value))}
+            aria-label="Громкость"
+          />
+        </label>
+        <span className="player-volume-value">{Math.round(app.player.volume * 100)}%</span>
       </div>
     </div>
   );

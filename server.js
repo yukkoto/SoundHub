@@ -27,6 +27,7 @@ const CLIENT_INDEX_PATH = path.join(CLIENT_DIST_DIR, 'index.html');
 const UPLOAD_AUDIO_DIR = path.join(PUBLIC_DIR, 'uploads', 'audio');
 const UPLOAD_COVER_DIR = path.join(PUBLIC_DIR, 'uploads', 'covers');
 const MEDIA_CACHE_DIR = path.join(ROOT_DIR, '.cache', 'audio');
+const SAMPLE_AUDIO_PATH = path.join(PUBLIC_DIR, 'audio', 'sample.wav');
 
 function ensureDir(absPath) {
   try {
@@ -76,6 +77,19 @@ async function mergeGuestLikesIntoUser(req, userId) {
   if (!guestLikes.length) return;
   await store.mergeGuestLikes(userId, guestLikes);
   req.session.guestLikes = [];
+}
+
+async function persistUserSession(req, userId) {
+  if (!req.session) return;
+  req.session.userId = userId;
+  await mergeGuestLikesIntoUser(req, userId);
+
+  await new Promise((resolve, reject) => {
+    req.session.save(error => {
+      if (error) return reject(error);
+      resolve();
+    });
+  });
 }
 
 function requireRole(role) {
@@ -210,12 +224,24 @@ function getTrackCachePath(track) {
 
   const provider = String(track?.sourceProvider || 'catalog').replace(/[^a-z0-9_-]/gi, '').toLowerCase() || 'catalog';
   const sourceId = String(track?.sourceTrackId || track?.id || hashString(track?.title || 'track'));
-  const ext = path.extname(track?.storageObjectKey || track?.originStorageUrl || '.mp3') || '.mp3';
+  const sourceForExt = track?.storageObjectKey || track?.originStorageUrl || track?.audio || track?.preview || '.mp3';
+  let ext = '.mp3';
+
+  if (typeof sourceForExt === 'string') {
+    try {
+      ext = path.extname(new URL(sourceForExt).pathname) || ext;
+    } catch (_) {
+      ext = path.extname(sourceForExt.split('?')[0]) || ext;
+    }
+  }
+
   return path.join(MEDIA_CACHE_DIR, provider, `${sourceId}${ext}`);
 }
 
 function getRemoteTrackUrl(track) {
   if (track?.originStorageUrl) return track.originStorageUrl;
+  if (typeof track?.audio === 'string' && /^https?:\/\//i.test(track.audio)) return track.audio;
+  if (typeof track?.preview === 'string' && /^https?:\/\//i.test(track.preview)) return track.preview;
   if (track?.sourceProvider === 'fma' && track?.sourceTrackId) {
     return fma.buildRemoteAudioUrl(track.sourceTrackId);
   }
@@ -322,12 +348,23 @@ function sendFileWithRange(req, res, absPath, contentType = 'audio/mpeg') {
 
 function normalizeTrack(track) {
   const normalized = { ...track };
+  const hasRemoteAudio = typeof normalized.audio === 'string' && /^https?:\/\//i.test(normalized.audio);
+  const hasRemotePreview = typeof normalized.preview === 'string' && /^https?:\/\//i.test(normalized.preview);
+  const shouldUseManagedStream = Boolean(
+    normalized.id &&
+      (normalized.originStorageUrl ||
+        normalized.cacheFilePath ||
+        normalized.sourceProvider ||
+        hasRemoteAudio ||
+        hasRemotePreview)
+  );
 
   if (!normalized.status) normalized.status = 'published';
   if (!normalized.cover) normalized.cover = '/assets/covers/default.png';
-  if (!normalized.audio) {
+  if (shouldUseManagedStream) {
+    normalized.audio = `/media/tracks/${normalized.id}/stream`;
+  } else if (!normalized.audio) {
     normalized.audio =
-      (normalized.sourceProvider === 'fma' && normalized.id ? `/media/tracks/${normalized.id}/stream` : null) ||
       normalized.preview ||
       '/audio/sample.wav';
   }
@@ -480,8 +517,7 @@ async function performRegister(req, payload) {
     passwordHash: hashPassword(password)
   });
 
-  req.session.userId = user.id;
-  await mergeGuestLikesIntoUser(req, user.id);
+  await persistUserSession(req, user.id);
   return user;
 }
 
@@ -494,8 +530,7 @@ async function performLogin(req, payload) {
     throw new Error('Неверный email или пароль');
   }
 
-  req.session.userId = user.id;
-  await mergeGuestLikesIntoUser(req, user.id);
+  await persistUserSession(req, user.id);
   return user;
 }
 
@@ -511,8 +546,7 @@ async function performDemoLogin(req, kind) {
   const user = await store.findUserById(id);
   if (!user) throw new Error('Демо-аккаунт не найден');
 
-  req.session.userId = user.id;
-  await mergeGuestLikesIntoUser(req, user.id);
+  await persistUserSession(req, user.id);
   return user;
 }
 
@@ -668,8 +702,19 @@ app.get(
     }
 
     const normalizedTrack = normalizeTrack(track);
-    const absPath = await ensureTrackAudioCache(normalizedTrack);
-    sendFileWithRange(req, res, absPath, normalizedTrack.audioMimeType || 'audio/mpeg');
+    let absPath;
+    let contentType = normalizedTrack.audioMimeType || 'audio/mpeg';
+
+    try {
+      absPath = await ensureTrackAudioCache(normalizedTrack);
+    } catch (error) {
+      if (!fs.existsSync(SAMPLE_AUDIO_PATH)) throw error;
+      console.warn(`Fallback audio for track ${track.id}: ${error.message || error}`);
+      absPath = SAMPLE_AUDIO_PATH;
+      contentType = 'audio/wav';
+    }
+
+    sendFileWithRange(req, res, absPath, contentType);
   })
 );
 
@@ -1271,8 +1316,7 @@ app.get(
       avatar: me.picture
     });
 
-    req.session.userId = user.id;
-    await mergeGuestLikesIntoUser(req, user.id);
+    await persistUserSession(req, user.id);
     return res.redirect(consumeOauthNext(req, 'google'));
   })
 );
@@ -1331,8 +1375,7 @@ app.get(
         : null
     });
 
-    req.session.userId = user.id;
-    await mergeGuestLikesIntoUser(req, user.id);
+    await persistUserSession(req, user.id);
     return res.redirect(consumeOauthNext(req, 'yandex'));
   })
 );
@@ -1401,8 +1444,7 @@ app.get(
       avatar: profile.photo_200 || null
     });
 
-    req.session.userId = user.id;
-    await mergeGuestLikesIntoUser(req, user.id);
+    await persistUserSession(req, user.id);
     return res.redirect(consumeOauthNext(req, 'vk'));
   })
 );
