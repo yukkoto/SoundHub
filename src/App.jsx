@@ -109,6 +109,8 @@ function prettyProvider(provider) {
 function trackBadgeLabel(track) {
   if (track?.status === 'pending') return 'На проверке';
   if (track?.status === 'rejected') return 'Скрыт';
+  if (track?.sourceProvider === 'musicapi') return 'MusicAPI';
+  if (track?.sourceProvider === 'deezer') return 'Deezer';
   return 'Трек';
 }
 
@@ -117,7 +119,7 @@ function genericTagline(value, fallback = 'Артист SoundHub') {
   const normalized = String(value).trim();
   const lowered = normalized.toLowerCase();
   if (!normalized) return fallback;
-  if (lowered.includes('deezer') || lowered.includes('imported') || lowered.includes('импорт')) return fallback;
+  if (lowered.includes('deezer') || lowered.includes('imported') || lowered.includes('импорт') || lowered.includes('api')) return fallback;
   return normalized;
 }
 
@@ -956,6 +958,33 @@ function PlaylistAdder({ trackId }) {
   );
 }
 
+function TrackSourceLinks({ track }) {
+  const items = [
+    track?.providerUrl && track?.providerLabel ? { href: track.providerUrl, label: track.providerLabel, external: true } : null,
+    track?.youtubeUrl ? { href: track.youtubeUrl, label: 'YouTube', external: true } : null,
+    track?.spotifyUrl ? { href: track.spotifyUrl, label: 'Spotify', external: true } : null,
+    track?.downloadUrl ? { href: track.downloadUrl, label: 'Скачать', external: false } : null
+  ].filter(Boolean);
+
+  if (!items.length) return null;
+
+  return (
+    <div className="source-links">
+      {items.map(item => (
+        <a
+          key={`${track?.id || trackIdentity(track)}:${item.label}`}
+          className="ghost-btn small-btn"
+          href={item.href}
+          target={item.external ? '_blank' : undefined}
+          rel={item.external ? 'noreferrer' : undefined}
+        >
+          {item.label}
+        </a>
+      ))}
+    </div>
+  );
+}
+
 function TrackCard({ track, queue = [] }) {
   const app = useApp();
   const likeLabel = track.isLiked ? 'Убрать из понравившихся' : 'Добавить в понравившиеся';
@@ -1019,6 +1048,7 @@ function TrackCard({ track, queue = [] }) {
           </button>
         </div>
 
+        <TrackSourceLinks track={track} />
         <PlaylistAdder trackId={track.id} />
       </div>
     </article>
@@ -1168,7 +1198,7 @@ function SearchPage() {
     <PageFrame
       eyebrow="Обзор"
       title="Каталог SoundHub"
-      subtitle="Ищи треки по локальной базе, запускай плеер сразу из карточек и собирай свою медиатеку."
+      subtitle="Ищи локальные треки и подтягивай внешние совпадения из бесплатного API с готовым прослушиванием и скачиванием."
       actions={
         viewer?.role === 'admin' ? (
           <div className="page-actions">
@@ -1217,13 +1247,21 @@ function SearchPage() {
               </div>
 
               <div className="mini-compose">
-                <strong>{viewer?.role === 'admin' ? 'Обновление каталога' : 'Медиатека'}</strong>
+                <strong>{deferredQuery ? 'Внешний поиск' : viewer?.role === 'admin' ? 'Обновление каталога' : 'Медиатека'}</strong>
                 <p>
-                  {viewer?.role === 'admin'
+                  {deferredQuery
+                    ? 'По запросу подтягиваются внешние совпадения из бесплатного API. Если MusicAPI не настроен, используется рабочий fallback через Deezer.'
+                    : viewer?.role === 'admin'
                     ? 'Если metadata CSV обновился, подтяни свежие записи в каталог одной кнопкой.'
                     : 'Сохраняй лайки, собирай плейлисты и слушай музыку из одного места.'}
                 </p>
-                {viewer?.role === 'admin' ? (
+                {deferredQuery ? (
+                  <div className="meta-line">
+                    <span>Deezer</span>
+                    <span>MusicAPI</span>
+                    <span>Download</span>
+                  </div>
+                ) : viewer?.role === 'admin' ? (
                   <button className="ghost-btn" type="button" onClick={() => app.syncCatalog().catch(error => app.notify(error.message, 'error'))}>
                     Пересобрать каталог
                   </button>
@@ -1270,19 +1308,33 @@ function SearchPage() {
             <section className="panel panel-spotlight">
               <div className="section-head">
                 <div>
-                  <span className="eyebrow">{deferredQuery ? 'Свежие совпадения' : 'Для открытия'}</span>
-                  <h2>{deferredQuery ? 'Что ещё послушать' : 'Подборка на сегодня'}</h2>
+                  <span className="eyebrow">{deferredQuery ? 'Через Внешний API' : 'Для открытия'}</span>
+                  <h2>{deferredQuery ? 'Найдено во внешнем поиске' : 'Подборка на сегодня'}</h2>
                 </div>
               </div>
-              <div className="track-grid compact-grid">
-                {(deferredQuery ? state.data.discoveries : state.data.charts).map(track => (
-                  <TrackCard
-                    key={track.id}
-                    track={track}
-                    queue={deferredQuery ? state.data.discoveries : state.data.charts}
+              {deferredQuery ? (
+                state.data.externalResults.length ? (
+                  <div className="track-grid compact-grid">
+                    {state.data.externalResults.map(track => (
+                      <TrackCard key={track.id} track={track} queue={state.data.externalResults} />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title={state.data.externalError ? 'Внешний поиск недоступен' : 'Совпадений не найдено'}
+                    text={
+                      state.data.externalError ||
+                      'По этому запросу внешний API пока ничего не вернул. Можно попробовать другое название или ссылку.'
+                    }
                   />
-                ))}
-              </div>
+                )
+              ) : (
+                <div className="track-grid compact-grid">
+                  {state.data.charts.map(track => (
+                    <TrackCard key={track.id} track={track} queue={state.data.charts} />
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         </>
@@ -1497,6 +1549,11 @@ function TrackPage() {
           <button className="primary-btn" type="button" onClick={() => app.playTrack(track, { queue: playbackQueue })}>
             Слушать
           </button>
+          {track.downloadUrl ? (
+            <a className="ghost-btn" href={track.downloadUrl}>
+              Скачать
+            </a>
+          ) : null}
         </div>
       }
     >
@@ -1521,6 +1578,7 @@ function TrackPage() {
               <span>{statNumber(track.likes)}</span>
             </button>
           </div>
+          <TrackSourceLinks track={track} />
           <PlaylistAdder trackId={track.id} />
         </div>
       </div>

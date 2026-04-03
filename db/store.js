@@ -1244,6 +1244,27 @@ async function setTrackCachePath(trackId, cacheFilePath) {
   });
 }
 
+async function updateTrackAudioSource(trackId, { audioUrl, previewUrl, originStorageUrl, audioMimeType } = {}) {
+  if (!trackId) return null;
+  return withClient(async client => {
+    const { rows } = await client.query(
+      `
+        UPDATE tracks
+        SET
+          audio_url = COALESCE($2, audio_url),
+          preview_url = COALESCE($3, preview_url),
+          origin_storage_url = COALESCE($4, origin_storage_url),
+          audio_mime_type = COALESCE($5, audio_mime_type),
+          updated_at = NOW()
+        WHERE id = $1
+        RETURNING ${TRACK_RETURNING}
+      `,
+      [trackId, audioUrl || null, previewUrl || null, originStorageUrl || null, audioMimeType || null]
+    );
+    return mapTrack(rows[0]);
+  });
+}
+
 async function deleteTracksBySourceProvider(provider) {
   if (!provider) return 0;
   return withTransaction(async client => {
@@ -1300,6 +1321,7 @@ module.exports = {
   readTracksRaw,
   removeTrackFromPlaylist,
   searchTracks,
+  updateTrackAudioSource,
   setTrackCachePath,
   toggleTrackLike,
   updateTrackStatus,

@@ -11,6 +11,7 @@
 - **Роли и демо-аккаунты:** admin / artist / user.
 - **Исполнитель добавляет треки:** страница **/artist/upload** (статус `pending`).
 - **Админ модератор:** в **/admin** можно **одобрить/отклонить** трек и **удалять подборки**.
+- **Внешний поиск в `/search`:** при вводе запроса SoundHub подтягивает треки из бесплатного API. По умолчанию используется **Deezer**, а `MusicAPI` можно подключить отдельно как self-hosted источник.
 
 ## Запуск
 1) Установи зависимости:
@@ -120,3 +121,26 @@ Callback URL'ы (их нужно прописать в настройках пр
 Источник данных теперь PostgreSQL. SQL-схема лежит в `db/schema.sql`, демо-сиды в `db/seed.sql`.
 
 Аудио-заглушка: `public/audio/sample.wav` (короткий тон, чтобы плеер работал без интернета).
+
+## MusicAPI
+Поиск на странице `/search` по умолчанию использует **Deezer** как бесплатный внешний источник. Если хочешь именно `MusicAPI`, его лучше поднимать отдельно и указывать через `.env`.
+
+Поддерживаются переменные окружения:
+
+```bash
+MUSICAPI_BASE_URL=
+MUSICAPI_BASE_URLS=
+MUSICAPI_TIMEOUT_MS=8000
+MUSICAPI_RESULT_LIMIT=1
+DEEZER_TIMEOUT_MS=5000
+DEEZER_RESULT_LIMIT=6
+```
+
+- `MUSICAPI_BASE_URL` — один базовый URL self-hosted `MusicAPI`, например `https://example.com/music/api`
+- `MUSICAPI_BASE_URLS` — список mirror URL через запятую; если указан, будет использоваться как fallback-цепочка
+- `MUSICAPI_TIMEOUT_MS` — таймаут одного запроса к внешнему API
+- `MUSICAPI_RESULT_LIMIT` — сколько совпадений импортировать из `MusicAPI` на один поиск
+- `DEEZER_TIMEOUT_MS` — таймаут запроса к Deezer
+- `DEEZER_RESULT_LIMIT` — сколько совпадений импортировать из Deezer на один поиск
+
+Если `MusicAPI` не настроен или недоступен, поиск всё равно продолжит работать через Deezer. Если внешний провайдер временно недоступен, локальный каталог SoundHub не ломается.

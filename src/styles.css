@@ -360,6 +360,17 @@ img {
   gap: 10px;
 }
 
+.source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.source-links > * {
+  flex: 1 1 112px;
+  min-width: 112px;
+}
+
 .icon-btn {
   display: inline-flex;
   align-items: center;

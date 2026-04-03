@@ -14,7 +14,9 @@ try {
 
 const { getPool } = require('./db/pool');
 const store = require('./db/store');
+const deezer = require('./services/deezer');
 const fma = require('./services/fma');
+const musicapi = require('./services/musicapi');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -172,6 +174,10 @@ function hashString(value) {
   return crypto.createHash('sha1').update(String(value || '')).digest('hex');
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 function escapeXml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -239,11 +245,19 @@ function getTrackCachePath(track) {
 }
 
 function getRemoteTrackUrl(track) {
+  const payload = isPlainObject(track?.sourcePayload) ? track.sourcePayload : null;
   if (track?.originStorageUrl) return track.originStorageUrl;
   if (typeof track?.audio === 'string' && /^https?:\/\//i.test(track.audio)) return track.audio;
   if (typeof track?.preview === 'string' && /^https?:\/\//i.test(track.preview)) return track.preview;
   if (track?.sourceProvider === 'fma' && track?.sourceTrackId) {
     return fma.buildRemoteAudioUrl(track.sourceTrackId);
+  }
+  if (track?.sourceProvider === 'musicapi') {
+    const baseUrl = typeof payload?.sourceBaseUrl === 'string' ? payload.sourceBaseUrl : musicapi.toBaseUrls()[0];
+    const remoteSongId =
+      (typeof payload?.remoteSongId === 'string' && payload.remoteSongId) ||
+      (typeof track?.sourceTrackId === 'string' && track.sourceTrackId);
+    if (baseUrl && remoteSongId) return musicapi.buildAudioUrl(baseUrl, remoteSongId);
   }
   return null;
 }
@@ -254,6 +268,37 @@ async function persistResponseBodyToFile(body, targetPath) {
   const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}`;
   await pipeline(Readable.fromWeb(body), fs.createWriteStream(tempPath));
   fs.renameSync(tempPath, targetPath);
+}
+
+async function refreshDeezerTrackSource(track) {
+  if (track?.sourceProvider !== 'deezer' || !track?.sourceTrackId) return null;
+
+  const response = await fetch(`https://api.deezer.com/track/${encodeURIComponent(track.sourceTrackId)}`);
+  if (!response.ok) {
+    throw new Error(`Не удалось обновить Deezer preview (${response.status})`);
+  }
+
+  const payload = await response.json();
+  if (payload?.error) {
+    throw new Error(payload.error.message || 'Deezer вернул ошибку при обновлении preview');
+  }
+
+  if (!payload?.preview) {
+    throw new Error('Deezer не вернул preview для этого трека');
+  }
+
+  const updated = await store.updateTrackAudioSource(track.id, {
+    audioUrl: payload.preview,
+    previewUrl: payload.preview,
+    audioMimeType: 'audio/mpeg'
+  });
+
+  return {
+    ...(updated || track),
+    audio: payload.preview,
+    preview: payload.preview,
+    audioMimeType: 'audio/mpeg'
+  };
 }
 
 async function ensureTrackAudioCache(track) {
@@ -291,18 +336,30 @@ async function ensureTrackAudioCache(track) {
   }
 
   const downloadPromise = (async () => {
-    const response = await fetch(remoteUrl, {
-      headers: {
-        accept: 'audio/mpeg,audio/*;q=0.9,*/*;q=0.1'
+    const attemptDownload = async sourceUrl => {
+      const response = await fetch(sourceUrl, {
+        headers: {
+          accept: 'audio/mpeg,audio/*;q=0.9,*/*;q=0.1'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Не удалось получить аудио из origin (${response.status})`);
       }
-    });
 
-    if (!response.ok) {
-      throw new Error(`Не удалось получить аудио из origin (${response.status})`);
+      await persistResponseBodyToFile(response.body, cachePath);
+      await store.setTrackCachePath(track.id, cachePath).catch(() => {});
+    };
+
+    try {
+      await attemptDownload(remoteUrl);
+    } catch (error) {
+      if (track?.sourceProvider !== 'deezer') throw error;
+      const refreshedTrack = await refreshDeezerTrackSource(track);
+      const refreshedUrl = getRemoteTrackUrl(refreshedTrack);
+      if (!refreshedUrl) throw error;
+      await attemptDownload(refreshedUrl);
     }
-
-    await persistResponseBodyToFile(response.body, cachePath);
-    await store.setTrackCachePath(track.id, cachePath).catch(() => {});
   })();
 
   pendingMediaDownloads.set(cachePath, downloadPromise);
@@ -315,13 +372,16 @@ async function ensureTrackAudioCache(track) {
   }
 }
 
-function sendFileWithRange(req, res, absPath, contentType = 'audio/mpeg') {
+function sendFileWithRange(req, res, absPath, contentType = 'audio/mpeg', options = {}) {
   const stat = fs.statSync(absPath);
   const range = req.headers.range;
 
   res.setHeader('Accept-Ranges', 'bytes');
   res.setHeader('Content-Type', contentType);
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.setHeader('Cache-Control', options.cacheControl || 'public, max-age=31536000, immutable');
+  if (options.contentDisposition) {
+    res.setHeader('Content-Disposition', options.contentDisposition);
+  }
 
   if (!range) {
     res.setHeader('Content-Length', stat.size);
@@ -344,6 +404,83 @@ function sendFileWithRange(req, res, absPath, contentType = 'audio/mpeg') {
   res.setHeader('Content-Range', `bytes ${safeStart}-${safeEnd}/${stat.size}`);
   res.setHeader('Content-Length', safeEnd - safeStart + 1);
   fs.createReadStream(absPath, { start: safeStart, end: safeEnd }).pipe(res);
+}
+
+function inferDownloadExtension(track, absPath) {
+  const candidates = [
+    absPath,
+    track?.storageObjectKey,
+    track?.originStorageUrl,
+    track?.audio,
+    track?.preview
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' || !candidate) continue;
+    try {
+      const ext = path.extname(new URL(candidate).pathname);
+      if (ext) return ext;
+    } catch (_) {
+      const ext = path.extname(candidate.split('?')[0]);
+      if (ext) return ext;
+    }
+  }
+
+  if (track?.audioMimeType === 'audio/wav') return '.wav';
+  if (track?.audioMimeType === 'audio/ogg') return '.ogg';
+  if (track?.audioMimeType === 'audio/aac') return '.aac';
+  if (track?.audioMimeType === 'audio/mp4') return '.m4a';
+  return '.mp3';
+}
+
+function sanitizeDownloadBaseName(value) {
+  const normalized = String(value || '')
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized || 'track';
+}
+
+function buildTrackDownloadDisposition(track, absPath) {
+  const baseName = sanitizeDownloadBaseName(
+    [track?.artist, track?.title].filter(Boolean).join(' - ') || track?.title || track?.id || 'track'
+  );
+  const ext = inferDownloadExtension(track, absPath);
+  const utf8Name = `${baseName}${ext}`;
+  const asciiName = utf8Name.replace(/[^\x20-\x7e]+/g, '_');
+  return `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(utf8Name)}`;
+}
+
+function trackLinkData(track) {
+  const payload = isPlainObject(track?.sourcePayload) ? track.sourcePayload : {};
+  const sourceUrl = typeof track?.sourceUrl === 'string' ? track.sourceUrl : '';
+  let youtubeUrl =
+    (typeof payload.youtubeUrl === 'string' && payload.youtubeUrl) ||
+    (typeof payload.youtube_url === 'string' && payload.youtube_url) ||
+    null;
+  let spotifyUrl =
+    (typeof payload.spotifyUrl === 'string' && payload.spotifyUrl) ||
+    (typeof payload.spotify_url === 'string' && payload.spotify_url) ||
+    null;
+
+  if (!youtubeUrl && /youtube\.com|youtu\.be/i.test(sourceUrl)) youtubeUrl = sourceUrl;
+  if (!spotifyUrl && /spotify\.com/i.test(sourceUrl)) spotifyUrl = sourceUrl;
+
+  let providerUrl = null;
+  let providerLabel = null;
+
+  if (track?.sourceProvider === 'deezer' && sourceUrl) {
+    providerUrl = sourceUrl;
+    providerLabel = 'Deezer';
+  }
+
+  return {
+    youtubeUrl,
+    spotifyUrl,
+    providerUrl,
+    providerLabel,
+    downloadUrl: track?.id ? `/media/tracks/${track.id}/download` : null
+  };
 }
 
 function normalizeTrack(track) {
@@ -373,6 +510,7 @@ function normalizeTrack(track) {
   if (!Number.isFinite(Number(normalized.durationSeconds))) normalized.durationSeconds = 0;
   if (!Number.isFinite(Number(normalized.plays))) normalized.plays = 0;
   if (!Number.isFinite(Number(normalized.likes))) normalized.likes = 0;
+  Object.assign(normalized, trackLinkData(normalized));
 
   return normalized;
 }
@@ -395,7 +533,8 @@ function decorateTrack(track, authorById, likedIds) {
     artist: author?.name || 'Unknown',
     artistAvatar: author?.avatar || null,
     author,
-    isLiked: likedSet.has(track.id)
+    isLiked: likedSet.has(track.id),
+    ...trackLinkData(track)
   };
 }
 
@@ -457,6 +596,119 @@ async function syncFmaCatalog(options = {}) {
   return {
     total: imported.length,
     tracks: imported
+  };
+}
+
+async function searchMusicApiTracks(query, options = {}) {
+  if (!musicapi.toBaseUrls().length) {
+    return { tracks: [], error: null };
+  }
+
+  if (!query) return { tracks: [], error: null };
+
+  try {
+    const remoteTracks = await musicapi.resolveTracks(query, {
+      limit: options.limit || undefined
+    });
+    if (!remoteTracks.length) return { tracks: [], error: null };
+
+    const imported = await store.upsertImportedTracks(remoteTracks, options.importedByUserId || null);
+    const authors = await Promise.all(imported.map(track => store.findAuthorById(track.artistId)));
+    const authorById = Object.fromEntries(authors.filter(Boolean).map(author => [author.id, author]));
+    const excludeIds = new Set(options.excludeTrackIds || []);
+
+    return {
+      tracks: imported
+        .map(normalizeTrack)
+        .filter(track => !excludeIds.has(track.id))
+        .map(track => decorateTrack(track, authorById, options.likedIds || [])),
+      error: null
+    };
+  } catch (error) {
+    console.warn(`MusicAPI search failed for "${query}": ${error.message || error}`);
+    return {
+      tracks: [],
+      error: 'MusicAPI сейчас недоступен или не ответил вовремя. Локальный каталог продолжает работать.'
+    };
+  }
+}
+
+async function searchDeezerTracks(query, options = {}) {
+  if (!query) return { tracks: [], error: null };
+
+  try {
+    const remoteTracks = await deezer.searchTracks(query, {
+      limit: options.limit || undefined
+    });
+    if (!remoteTracks.length) return { tracks: [], error: null };
+
+    const imported = await store.upsertImportedTracks(remoteTracks, options.importedByUserId || null);
+    const authors = await Promise.all(imported.map(track => store.findAuthorById(track.artistId)));
+    const authorById = Object.fromEntries(authors.filter(Boolean).map(author => [author.id, author]));
+    const excludeIds = new Set(options.excludeTrackIds || []);
+
+    return {
+      tracks: imported
+        .map(normalizeTrack)
+        .filter(track => !excludeIds.has(track.id))
+        .map(track => decorateTrack(track, authorById, options.likedIds || [])),
+      error: null
+    };
+  } catch (error) {
+    console.warn(`Deezer search failed for "${query}": ${error.message || error}`);
+    return {
+      tracks: [],
+      error: 'Deezer сейчас недоступен или не ответил вовремя.'
+    };
+  }
+}
+
+function mergeExternalTrackGroups(groups, limit = 12) {
+  const items = [];
+  const seen = new Set();
+
+  for (const group of groups) {
+    for (const track of group || []) {
+      const key = `${track?.sourceProvider || 'catalog'}:${track?.sourceTrackId || track?.id || track?.title || ''}`;
+      if (!track || seen.has(key)) continue;
+      seen.add(key);
+      items.push(track);
+      if (items.length >= limit) return items;
+    }
+  }
+
+  return items;
+}
+
+async function searchExternalTracks(query, options = {}) {
+  if (!query) return { tracks: [], error: null };
+
+  const tasks = [
+    searchDeezerTracks(query, {
+      ...options,
+      limit: options.deezerLimit || 8
+    })
+  ];
+
+  if (musicapi.toBaseUrls().length) {
+    tasks.push(
+      searchMusicApiTracks(query, {
+        ...options,
+        limit: options.musicApiLimit || 4
+      })
+    );
+  }
+
+  const settled = await Promise.all(tasks);
+  const tracks = mergeExternalTrackGroups(
+    settled.map(result => result.tracks),
+    options.limit || 12
+  );
+  const errors = settled.map(result => result.error).filter(Boolean);
+
+  return {
+    tracks,
+    error: tracks.length ? null : errors[0] || null
   };
 }
 
@@ -719,6 +971,37 @@ app.get(
 );
 
 app.get(
+  '/media/tracks/:id/download',
+  asyncHandler(async (req, res) => {
+    const track = await store.findTrackById(req.params.id);
+    const user = getCurrentUser(req);
+
+    if (!track) return res.status(404).json({ ok: false, error: 'Track not found' });
+    if (!isTrackVisibleToUser(track, user)) {
+      return res.status(403).json({ ok: false, error: 'Track is not available' });
+    }
+
+    const normalizedTrack = normalizeTrack(track);
+    let absPath;
+    let contentType = normalizedTrack.audioMimeType || 'audio/mpeg';
+
+    try {
+      absPath = await ensureTrackAudioCache(normalizedTrack);
+    } catch (error) {
+      if (!fs.existsSync(SAMPLE_AUDIO_PATH)) throw error;
+      console.warn(`Fallback audio for track ${track.id}: ${error.message || error}`);
+      absPath = SAMPLE_AUDIO_PATH;
+      contentType = 'audio/wav';
+    }
+
+    sendFileWithRange(req, res, absPath, contentType, {
+      cacheControl: 'private, max-age=0, must-revalidate',
+      contentDisposition: buildTrackDownloadDisposition(normalizedTrack, absPath)
+    });
+  })
+);
+
+app.get(
   '/api/bootstrap',
   asyncHandler(async (req, res) => {
     const { playlists, tracks, authorById, user } = await hydrate(req);
@@ -960,6 +1243,13 @@ app.get(
       ? decorateTracks(await store.searchTracks(query, 24), authorById, liked)
       : decorateTracks(tracks.slice(0, 12), authorById, liked);
     const excludeIds = new Set(localResults.map(track => track.id));
+    const externalPayload = query
+      ? await searchExternalTracks(query, {
+          importedByUserId: getCurrentUser(req)?.id || null,
+          likedIds: liked,
+          excludeTrackIds: [...excludeIds]
+        })
+      : { tracks: [], error: null };
     const discoveries = decorateTracks(
       [...tracks]
         .filter(track => !excludeIds.has(track.id))
@@ -975,7 +1265,8 @@ app.get(
       localResults,
       discoveries,
       charts: discoveries,
-      externalResults: []
+      externalResults: externalPayload.tracks,
+      externalError: externalPayload.error
     });
   })
 );
